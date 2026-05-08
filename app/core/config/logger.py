@@ -47,7 +47,8 @@ def _get_logfire_client() -> Any:
     if settings.LOGFIRE_ENVIRONMENT and settings.LOGFIRE_ENVIRONMENT.strip():
         logfire_config["environment"] = settings.LOGFIRE_ENVIRONMENT.strip()
 
-    return logfire.configure(**logfire_config)
+    logfire.configure(**logfire_config)
+    return logfire
 
 
 @lru_cache(maxsize=1)
