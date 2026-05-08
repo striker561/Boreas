@@ -49,10 +49,6 @@ for _ in $(seq 1 "$background_removal_workers"); do
 	worker_pids+=("$!")
 done
 
-"$uvicorn_bin" app.main:app --host 0.0.0.0 --port "${PORT:-8000}" &
-worker_pids+=("$!")
-
-wait -n "${worker_pids[@]}"
-exit_code=$?
-cleanup
-exit "$exit_code"
+# Keep uvicorn in the foreground so worker exits do not immediately terminate
+# container liveness; workers are cleaned up when the API process exits.
+"$uvicorn_bin" app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
