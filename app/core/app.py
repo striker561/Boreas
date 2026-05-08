@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -24,13 +25,42 @@ from app.core.rate_limit import limiter
 from app.core.storage.dependency import get_redis_cache
 from app.helpers import APIResponse, format_validation_errors
 
+STARTUP_DEPENDENCY_MAX_ATTEMPTS = 10
+STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS = 2.0
+
+
+async def _warm_startup_dependencies(redis_cache) -> None:
+    last_error: Exception | None = None
+
+    for attempt in range(1, STARTUP_DEPENDENCY_MAX_ATTEMPTS + 1):
+        try:
+            await redis_cache.connect()
+            await get_arq_pool()
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt == STARTUP_DEPENDENCY_MAX_ATTEMPTS:
+                break
+
+            logger.warning(
+                "Startup dependency warmup failed; retrying",
+                attempt=attempt,
+                max_attempts=STARTUP_DEPENDENCY_MAX_ATTEMPTS,
+                retry_delay_seconds=STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS,
+                error=type(exc).__name__,
+                detail=str(exc),
+            )
+            await asyncio.sleep(STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS)
+
+    if last_error is not None:
+        raise last_error
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     redis_cache = get_redis_cache()
 
-    await redis_cache.connect()
-    await get_arq_pool()  # warm up arq connection on startup
+    await _warm_startup_dependencies(redis_cache)
     logger.info("Application startup complete")
 
     try:
