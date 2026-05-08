@@ -32,17 +32,22 @@ def _resolve_log_level(level_name: str) -> int:
 @lru_cache(maxsize=1)
 def _get_logfire_client() -> Any:
     settings = get_environment()
-    return logfire.configure(
-        local=not settings.IS_PRODUCTION,
-        send_to_logfire=(
+    logfire_config: dict[str, Any] = {
+        "send_to_logfire": (
             settings.LOGFIRE_SEND_TO_LOGFIRE and bool(settings.LOGFIRE_TOKEN)
         ),
-        token=settings.LOGFIRE_TOKEN,
-        service_name=settings.LOGFIRE_SERVICE_NAME,
-        service_version=settings.APP_VERSION,
-        environment=settings.LOGFIRE_ENVIRONMENT,
-        min_level=_resolve_log_level(settings.LOG_LEVEL),
-    )
+        "token": settings.LOGFIRE_TOKEN,
+        "service_name": settings.LOGFIRE_SERVICE_NAME,
+        "service_version": settings.APP_VERSION,
+        "min_level": _resolve_log_level(settings.LOG_LEVEL),
+        # The app already writes structured logs to stdout, so disable Logfire's
+        # console exporter to avoid duplicate local logs and repeated project URLs.
+        "console": False,
+    }
+    if settings.LOGFIRE_ENVIRONMENT and settings.LOGFIRE_ENVIRONMENT.strip():
+        logfire_config["environment"] = settings.LOGFIRE_ENVIRONMENT.strip()
+
+    return logfire.configure(**logfire_config)
 
 
 @lru_cache(maxsize=1)

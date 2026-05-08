@@ -75,6 +75,16 @@ Use `/` for container liveness.
 
 Do not use `/health` as the container liveness probe. `/health` is the operational report and includes dependency checks. Boreas already warms Redis and ARQ during startup, so the Docker healthcheck should only verify that the API process is up and answering requests.
 
+The container now gives startup more room before being marked unhealthy:
+
+- the app retries Redis and ARQ warmup during startup
+- the Docker healthcheck waits longer before the first liveness decision
+
+If your platform still races Redis DNS or service startup, raise these settings:
+
+- `STARTUP_DEPENDENCY_MAX_ATTEMPTS`
+- `STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS`
+
 Persist this directory if Coolify offers a volume:
 
 - `/home/appuser/.u2net`
@@ -97,6 +107,11 @@ REMBG_ALPHA_MATTING_ERODE_SIZE=10
 REMBG_OMP_NUM_THREADS=2
 LOG_LEVEL=INFO
 ```
+
+Logfire note:
+
+- `LOGFIRE_ENVIRONMENT` is optional
+- leave it unset unless you explicitly want environment-based filtering in the Logfire UI
 
 Why this is the default profile:
 

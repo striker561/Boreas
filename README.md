@@ -79,6 +79,8 @@ Important settings:
 - `REMBG_ALPHA_MATTING_BACKGROUND_THRESHOLD`
 - `REMBG_ALPHA_MATTING_ERODE_SIZE`
 - `REMBG_OMP_NUM_THREADS`
+- `STARTUP_DEPENDENCY_MAX_ATTEMPTS`
+- `STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS`
 - `LOG_LEVEL`
 - `LOGFIRE_SEND_TO_LOGFIRE`
 - `LOGFIRE_TOKEN`
@@ -86,6 +88,10 @@ Important settings:
 - `LOGFIRE_ENVIRONMENT`
 
 If `LOGFIRE_SEND_TO_LOGFIRE=false`, Boreas keeps logs local even when Logfire is installed.
+
+`LOGFIRE_ENVIRONMENT` is optional. Set it only if you want Logfire to split or filter telemetry by deployment environment. Leaving it empty keeps all Boreas telemetry under the same service without an extra environment dimension.
+
+`STARTUP_DEPENDENCY_MAX_ATTEMPTS` and `STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS` control how long Boreas retries Redis and ARQ warmup before failing startup.
 
 ## Coolify On Hostinger KVM2
 

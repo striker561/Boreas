@@ -25,7 +25,13 @@ class Environment(BaseSettings):
     LOGFIRE_TOKEN: str | None = None
     LOGFIRE_SEND_TO_LOGFIRE: bool = False
     LOGFIRE_SERVICE_NAME: str = "boreas"
-    LOGFIRE_ENVIRONMENT: str = "development"
+    LOGFIRE_ENVIRONMENT: str | None = None
+    STARTUP_DEPENDENCY_MAX_ATTEMPTS: int = Field(default=10, ge=1, le=60)
+    STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS: float = Field(
+        default=2.0,
+        gt=0,
+        le=30,
+    )
 
     JOB_TTL_SECONDS: int = 60 * 60
     RESULT_URL_TTL_SECONDS: int = 60 * 60

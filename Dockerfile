@@ -37,8 +37,8 @@ USER appuser
 
 EXPOSE 8000
 
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-#     CMD python -c "import urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5); raise SystemExit(0 if response.status == 200 else 1)"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+    CMD python -c "import os, sys, urllib.request; response = urllib.request.urlopen(f\"http://127.0.0.1:{os.environ.get('PORT', '8000')}/\", timeout=5); sys.exit(0 if response.status == 200 else 1)"
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["bash", "/app/start.sh"]
