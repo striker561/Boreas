@@ -1,13 +1,13 @@
 from app.features.client.dependency import (
-    build_rembg_client_service,
-    get_rembg_client_service,
+    build_client_service,
+    get_client_service,
 )
 from app.features.client.routes import router
-from app.features.client.service import RembgClientService
+from app.features.client.service import ClientService
 
 __all__ = [
-    "RembgClientService",
-    "build_rembg_client_service",
-    "get_rembg_client_service",
+    "ClientService",
+    "build_client_service",
+    "get_client_service",
     "router",
 ]

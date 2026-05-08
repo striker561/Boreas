@@ -5,7 +5,7 @@ from app.features.storage.dependency import (
 from app.features.storage.enums import (
     CONTENT_TYPE_TO_EXTENSION,
     RESULT_CONTENT_TYPE,
-    RembgJobStatus,
+    JobStatus,
     TERMINAL_JOB_STATUSES,
 )
 from app.features.storage.schemas import RembgJob
@@ -13,7 +13,7 @@ from app.features.storage.service import RembgStorageService
 
 __all__ = [
     "RembgJob",
-    "RembgJobStatus",
+    "JobStatus",
     "RembgStorageService",
     "CONTENT_TYPE_TO_EXTENSION",
     "RESULT_CONTENT_TYPE",

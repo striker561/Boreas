@@ -11,12 +11,12 @@ from app.features.client.enums import (
     ALLOWED_IMAGE_CONTENT_TYPES,
     MAX_IMAGE_DIMENSION,
 )
-from app.features.client.schemas import RembgJobQueuedResponse, RembgJobResponse
+from app.features.client.schemas import JobQueuedResponse, JobResponse
 from app.features.rembg.enums import REMBG_JOB_NAME
-from app.features.storage import RembgJobStatus, RembgStorageService
+from app.features.storage import JobStatus, RembgStorageService
 
 
-class RembgClientService:
+class ClientService:
     def __init__(
         self,
         storage: RembgStorageService,
@@ -25,7 +25,7 @@ class RembgClientService:
         self.storage = storage
         self.queue_pool = queue_pool
 
-    async def create_job(self, upload: UploadFile) -> RembgJobQueuedResponse:
+    async def create_job(self, upload: UploadFile) -> JobQueuedResponse:
         image_bytes = await upload.read()
         content_type = self._validate_upload(image_bytes, upload.content_type)
 
@@ -53,18 +53,18 @@ class RembgClientService:
                 detail="Unable to enqueue background removal job",
             ) from exc
 
-        return RembgJobQueuedResponse(job_id=job.job_id, status=job.status)
+        return JobQueuedResponse(job_id=job.job_id, status=job.status)
 
-    async def get_job_response(self, job_id: str) -> RembgJobResponse | None:
+    async def get_job_response(self, job_id: str) -> JobResponse | None:
         job = await self.storage.get_job(job_id)
         if job is None:
             return None
 
         result_url = None
-        if job.status == RembgJobStatus.complete:
+        if job.status == JobStatus.complete:
             result_url = await self.storage.get_result_url(job)
 
-        return RembgJobResponse(
+        return JobResponse(
             job_id=job.job_id,
             status=job.status,
             result_url=result_url,
@@ -74,7 +74,7 @@ class RembgClientService:
             updated_at=job.updated_at,
         )
 
-    async def require_job_response(self, job_id: str) -> RembgJobResponse:
+    async def require_job_response(self, job_id: str) -> JobResponse:
         payload = await self.get_job_response(job_id)
         if payload is None:
             raise HTTPException(

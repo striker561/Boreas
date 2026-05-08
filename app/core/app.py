@@ -21,7 +21,6 @@ from app.core.middleware import (
 from app.core.queue import close_arq_pool, get_arq_pool
 from app.core.rate_limit import limiter
 from app.core.storage.dependency import get_redis_cache
-from app.features.client import router as rembg_router
 from app.helpers import APIResponse, format_validation_errors
 
 
@@ -91,8 +90,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.include_router(rembg_router)
 
 
 # Exception Handlers

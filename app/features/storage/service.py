@@ -1,10 +1,10 @@
-from app.features.storage.dal import RembgStorageDAL
-from app.features.storage.enums import CONTENT_TYPE_TO_EXTENSION, RembgJobStatus
+from app.features.storage.dal import StorageDAL
+from app.features.storage.enums import CONTENT_TYPE_TO_EXTENSION, JobStatus
 from app.features.storage.schemas import RembgJob
 
 
 class RembgStorageService:
-    def __init__(self, dal: RembgStorageDAL) -> None:
+    def __init__(self, dal: StorageDAL) -> None:
         self.dal = dal
         self.ttl_seconds = dal.ttl_seconds
 
@@ -26,7 +26,7 @@ class RembgStorageService:
     ) -> RembgJob:
         return RembgJob(
             job_id=job_id,
-            status=RembgJobStatus.queued,
+            status=JobStatus.queued,
             raw_key=self.build_raw_object_key(job_id, source_content_type),
             result_key=self.build_result_object_key(job_id),
             source_content_type=source_content_type,

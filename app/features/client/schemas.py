@@ -2,17 +2,17 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.features.storage.enums import RembgJobStatus
+from app.features.storage.enums import JobStatus
 
 
-class RembgJobQueuedResponse(BaseModel):
+class JobQueuedResponse(BaseModel):
     job_id: str
-    status: RembgJobStatus
+    status: JobStatus
 
 
-class RembgJobResponse(BaseModel):
+class JobResponse(BaseModel):
     job_id: str
-    status: RembgJobStatus
+    status: JobStatus
     result_url: str | None = None
     error: str | None = None
     attempts: int

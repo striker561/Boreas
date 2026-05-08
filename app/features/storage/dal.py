@@ -3,7 +3,7 @@ from app.features.storage.schemas import RembgJob
 from app.lib.storage import StorageBackend
 
 
-class RembgStorageDAL:
+class StorageDAL:
     def __init__(
         self,
         redis_cache: RedisCache,

@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
-from app.features.storage.enums import RESULT_CONTENT_TYPE, RembgJobStatus
+from app.features.storage.enums import RESULT_CONTENT_TYPE, JobStatus
 
 
 def utcnow() -> datetime:
@@ -11,7 +11,7 @@ def utcnow() -> datetime:
 
 class RembgJob(BaseModel):
     job_id: str
-    status: RembgJobStatus
+    status: JobStatus
     raw_key: str
     result_key: str
     source_content_type: str
@@ -26,17 +26,17 @@ class RembgJob(BaseModel):
         self.updated_at = utcnow()
 
     def mark_processing(self) -> None:
-        self.status = RembgJobStatus.processing
+        self.status = JobStatus.processing
         self.attempts += 1
         self.error = None
         self.touch()
 
     def mark_complete(self) -> None:
-        self.status = RembgJobStatus.complete
+        self.status = JobStatus.complete
         self.error = None
         self.touch()
 
     def mark_failed(self, error: str) -> None:
-        self.status = RembgJobStatus.failed
+        self.status = JobStatus.failed
         self.error = error
         self.touch()

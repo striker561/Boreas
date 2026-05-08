@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class RembgJobStatus(StrEnum):
+class JobStatus(StrEnum):
     queued = "queued"
     processing = "processing"
     complete = "complete"
@@ -14,9 +14,9 @@ CONTENT_TYPE_TO_EXTENSION: dict[str, str] = {
     "image/webp": ".webp",
 }
 RESULT_CONTENT_TYPE = "image/png"
-TERMINAL_JOB_STATUSES: frozenset[RembgJobStatus] = frozenset(
+TERMINAL_JOB_STATUSES: frozenset[JobStatus] = frozenset(
     {
-        RembgJobStatus.complete,
-        RembgJobStatus.failed,
+        JobStatus.complete,
+        JobStatus.failed,
     }
 )
