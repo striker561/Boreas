@@ -60,7 +60,7 @@ class AxiomHandlerSetupTests(unittest.TestCase):
             "sys.modules",
             {
                 "axiom_py": MagicMock(Client=MagicMock(return_value=mock_client)),
-                "axiom_py.handlers": MagicMock(
+                "axiom_py.logging": MagicMock(
                     AxiomHandler=MagicMock(return_value=mock_handler)
                 ),
             },

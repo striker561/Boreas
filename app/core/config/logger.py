@@ -52,7 +52,7 @@ def _build_stdlib_logger() -> logging.Logger:
     if settings.AXIOM_TOKEN:
         try:
             import axiom_py
-            from axiom_py.handlers import AxiomHandler
+            from axiom_py.logging import AxiomHandler
 
             client = axiom_py.Client(settings.AXIOM_TOKEN)
             axiom_handler = AxiomHandler(client, settings.AXIOM_DATASET)
