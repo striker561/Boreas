@@ -2,7 +2,8 @@
 
 Boreas is a FastAPI background-removal backend built for a narrow job: accept uploads quickly, push heavy work off-request, and stay understandable under load.
 
-Architecture rationale lives in [docs/system-design.md](/Users/extreme/SRC/Local/Boreas/docs/system-design.md). Contributor rules live in [CONTRIBUTING.md](/Users/extreme/SRC/Local/Boreas/CONTRIBUTING.md).
+Architecture rationale lives in [docs/system-design.md](docs/system-design.md). Contributor rules live in [CONTRIBUTING.md](CONTRIBUTING.md).
+Deployment and model-tuning guidance lives in [docs/deployment-guide.md](docs/deployment-guide.md).
 
 ## What It Does
 
@@ -28,7 +29,7 @@ The public request path stays thin. The queue carries job ids, not images. Redis
 - object lifecycle has to be explicit or it turns into cost and cleanup drift
 - contributor ownership should be obvious from the folder layout
 
-The longer explanation is in [docs/system-design.md](/Users/extreme/SRC/Local/Boreas/docs/system-design.md).
+The longer explanation is in [docs/system-design.md](docs/system-design.md).
 
 ## Abuse Protection
 
@@ -106,7 +107,7 @@ cp .env.example .env
 
 ## VS Code Launching
 
-Use [.vscode/launch.json](/Users/extreme/SRC/Local/Boreas/.vscode/launch.json) for local debugging.
+Use [.vscode/launch.json](.vscode/launch.json) for local debugging.
 
 It includes:
 
@@ -130,4 +131,4 @@ The suite currently covers:
 - ingest lifecycle behavior
 - source deletion after compute
 - one-hour result URL assumptions
-- health metrics payload# Boreas
+- health metrics payload

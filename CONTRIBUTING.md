@@ -1,6 +1,6 @@
 # Contributing to Boreas
 
-Read [docs/system-design.md](/Users/extreme/SRC/Local/Boreas/docs/system-design.md) before making architectural changes. It documents the current intent and the tradeoffs behind it.
+Read [docs/system-design.md](docs/system-design.md) before making architectural changes. It documents the current intent and the tradeoffs behind it.
 
 Boreas is intentionally small. Keep changes explicit, measurable, and easy to reason about under load.
 
@@ -14,7 +14,7 @@ cp .env.example .env
 ./start.sh
 ```
 
-For VS Code debugging, use [.vscode/launch.json](/Users/extreme/SRC/Local/Boreas/.vscode/launch.json).
+For VS Code debugging, use [.vscode/launch.json](.vscode/launch.json).
 
 ## Ownership Rules
 
