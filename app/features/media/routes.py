@@ -1,25 +1,66 @@
+from typing import Annotated
+
 import asyncio
 import json
 from collections.abc import AsyncGenerator
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 
-from app.core.storage import TERMINAL_JOB_STATUSES
 from app.core.rate_limit import API_RATE_LIMIT, UPLOAD_RATE_LIMIT, limiter
+from app.core.storage import TERMINAL_JOB_STATUSES
 from app.features.media.dependency import get_media_service
+from app.features.media.schemas import MediaJobQueuedResponse, MediaJobResponse
 from app.features.media.service import MediaService
 from app.helpers import APIResponse
+from app.schemas import APIErrorResponseSchema, APIResponseSchema
 
 router = APIRouter(prefix="/media", tags=["Media"])
 STREAM_POLL_INTERVAL_SECONDS = 2.0
+UploadFileInput = Annotated[
+    UploadFile,
+    File(
+        description=(
+            "PNG, JPEG, or WEBP image uploaded as multipart/form-data. "
+            "The request body may be up to 10 MB, and Boreas will normalize the "
+            "prepared worker input down to the configured source cap before compute begins."
+        )
+    ),
+]
 
 
-@router.post("/jobs")
+@router.post(
+    "/jobs",
+    response_model=APIResponseSchema[MediaJobQueuedResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a background removal job",
+    description=(
+        "Accept an uploaded image, validate its media constraints, stage it briefly in Redis, "
+        "and enqueue the ingest worker. The API returns immediately with a job id."
+    ),
+    responses={
+        400: {
+            "model": APIErrorResponseSchema,
+            "description": "The uploaded file is not a supported image.",
+        },
+        413: {
+            "model": APIErrorResponseSchema,
+            "description": "The uploaded file exceeds the configured maximum request size.",
+        },
+        429: {
+            "model": APIErrorResponseSchema,
+            "description": "The client exceeded the configured upload rate limit.",
+        },
+        503: {
+            "model": APIErrorResponseSchema,
+            "description": "The job could not be staged or queued.",
+        },
+    },
+)
 @limiter.limit(UPLOAD_RATE_LIMIT)  # type: ignore[misc]
 async def create_media_job(
     request: Request,
-    file: UploadFile = File(...),
+    file: UploadFileInput,
     media: MediaService = Depends(get_media_service),
 ):
     _ = request
@@ -30,7 +71,25 @@ async def create_media_job(
     )
 
 
-@router.get("/jobs/{job_id}")
+@router.get(
+    "/jobs/{job_id}",
+    response_model=APIResponseSchema[MediaJobResponse],
+    summary="Get media job status",
+    description=(
+        "Fetch the current job lifecycle state. When the job is complete, the response "
+        "includes a short-lived result URL for the final PNG."
+    ),
+    responses={
+        404: {
+            "model": APIErrorResponseSchema,
+            "description": "The requested job id does not exist or has expired.",
+        },
+        429: {
+            "model": APIErrorResponseSchema,
+            "description": "The client exceeded the configured API rate limit.",
+        },
+    },
+)
 @limiter.limit(API_RATE_LIMIT)  # type: ignore[misc]
 async def get_media_job(
     request: Request,
@@ -42,7 +101,33 @@ async def get_media_job(
     return APIResponse.success(data=payload)
 
 
-@router.get("/jobs/{job_id}/stream")
+@router.get(
+    "/jobs/{job_id}/stream",
+    response_class=StreamingResponse,
+    summary="Stream media job status",
+    description=(
+        "Open a Server-Sent Events stream for a job. Each event sends the serialized job "
+        "snapshot in the SSE data field whenever the job status changes."
+    ),
+    responses={
+        200: {
+            "description": "SSE stream with JSON job snapshots.",
+            "content": {
+                "text/event-stream": {
+                    "example": 'data: {"job_id":"3fa85f64-5717-4562-b3fc-2c963f66afa6","status":"queued"}\n\n'
+                }
+            },
+        },
+        404: {
+            "model": APIErrorResponseSchema,
+            "description": "The requested job id does not exist or has expired.",
+        },
+        429: {
+            "model": APIErrorResponseSchema,
+            "description": "The client exceeded the configured API rate limit.",
+        },
+    },
+)
 @limiter.limit(API_RATE_LIMIT)  # type: ignore[misc]
 async def stream_media_job(
     request: Request,

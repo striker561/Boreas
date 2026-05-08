@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import Any
 
 from app.core.config import environment, logger
 from app.core.queue import QueueName, get_arq_pool
@@ -8,6 +7,13 @@ from app.core.storage import (
     RedisCache,
     build_media_storage_service,
     get_redis_cache,
+)
+from app.features.health.schemas import (
+    HealthDependencyStatus,
+    HealthLimits,
+    HealthReport,
+    HealthStatusPayload,
+    HealthWorkers,
 )
 
 
@@ -21,10 +27,10 @@ class HealthService:
         self.redis_cache = redis_cache
         self.storage = storage
 
-    async def get_status(self) -> dict[str, str]:
-        return {"status": "ok"}
+    async def get_status(self) -> HealthStatusPayload:
+        return HealthStatusPayload()
 
-    async def get_health(self) -> tuple[int, dict[str, Any]]:
+    async def get_health(self) -> tuple[int, HealthReport]:
         redis_ok = await self.redis_cache.ping()
         arq_ok = await self._check_arq()
 
@@ -48,24 +54,24 @@ class HealthService:
 
         return (
             200 if status == "ok" else 503,
-            {
-                "status": status,
-                "redis": {"reachable": redis_ok},
-                "arq": {"reachable": arq_ok},
-                "queue_depths": queue_depths,
-                "staged_uploads": staged_uploads,
-                "workers": {
-                    "media": environment.MEDIA_WORKERS,
-                    "background_removal": environment.BACKGROUND_REMOVAL_WORKERS,
-                },
-                "limits": {
-                    "api_rate_limit": environment.API_RATE_LIMIT,
-                    "upload_rate_limit": environment.UPLOAD_RATE_LIMIT,
-                    "job_ttl_seconds": environment.JOB_TTL_SECONDS,
-                    "result_url_ttl_seconds": environment.RESULT_URL_TTL_SECONDS,
-                    "media_source_max_bytes": environment.MEDIA_SOURCE_MAX_BYTES,
-                },
-            },
+            HealthReport(
+                status=status,
+                redis=HealthDependencyStatus(reachable=redis_ok),
+                arq=HealthDependencyStatus(reachable=arq_ok),
+                queue_depths=queue_depths,
+                staged_uploads=staged_uploads,
+                workers=HealthWorkers(
+                    media=environment.MEDIA_WORKERS,
+                    background_removal=environment.BACKGROUND_REMOVAL_WORKERS,
+                ),
+                limits=HealthLimits(
+                    api_rate_limit=environment.API_RATE_LIMIT,
+                    upload_rate_limit=environment.UPLOAD_RATE_LIMIT,
+                    job_ttl_seconds=environment.JOB_TTL_SECONDS,
+                    result_url_ttl_seconds=environment.RESULT_URL_TTL_SECONDS,
+                    media_source_max_bytes=environment.MEDIA_SOURCE_MAX_BYTES,
+                ),
+            ),
         )
 
     async def _check_arq(self) -> bool:

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from enum import StrEnum
 from functools import lru_cache
@@ -148,15 +149,17 @@ class MediaStorageService:
         payload: bytes,
         metadata: dict[str, Any],
     ) -> None:
-        payload_saved = await self.redis_cache.set_bytes(
-            self.staged_upload_payload_key(job_id),
-            payload,
-            ttl=self.staged_upload_ttl_seconds,
-        )
-        metadata_saved = await self.redis_cache.set_json(
-            self.staged_upload_metadata_key(job_id),
-            metadata,
-            ttl=self.staged_upload_ttl_seconds,
+        payload_saved, metadata_saved = await asyncio.gather(
+            self.redis_cache.set_bytes(
+                self.staged_upload_payload_key(job_id),
+                payload,
+                ttl=self.staged_upload_ttl_seconds,
+            ),
+            self.redis_cache.set_json(
+                self.staged_upload_metadata_key(job_id),
+                metadata,
+                ttl=self.staged_upload_ttl_seconds,
+            ),
         )
         if payload_saved and metadata_saved:
             return

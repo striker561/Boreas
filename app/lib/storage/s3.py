@@ -8,6 +8,7 @@ import aioboto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
+
 class S3Backend:
     """Async S3-compatible storage backend."""
 
@@ -32,6 +33,11 @@ class S3Backend:
             signature_version="s3v4",
             request_checksum_calculation="when_required",
             response_checksum_validation="when_required",
+            max_pool_connections=32,
+            connect_timeout=5,
+            read_timeout=60,
+            retries={"max_attempts": 3, "mode": "adaptive"},
+            tcp_keepalive=True,
         )
 
     @asynccontextmanager
@@ -54,6 +60,7 @@ class S3Backend:
             "Bucket": self._bucket,
             "Key": key,
             "Body": data,
+            "ContentLength": len(data),
         }
         if content_type is not None:
             params["ContentType"] = content_type

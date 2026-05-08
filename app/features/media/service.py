@@ -1,4 +1,5 @@
 from io import BytesIO
+from contextlib import suppress
 from typing import Any
 from uuid import uuid4
 
@@ -24,6 +25,8 @@ from app.features.media.schemas import (
 )
 from app.features.rembg.enums import REMOVE_BACKGROUND_JOB_NAME
 
+UPLOAD_READ_CHUNK_SIZE = 1024 * 1024
+
 
 class MediaService:
     def __init__(
@@ -35,33 +38,29 @@ class MediaService:
         self.queue_pool = queue_pool
 
     async def create_job(self, upload: UploadFile) -> MediaJobQueuedResponse:
-        image_bytes = await upload.read()
-        inspection = self._inspect_upload(
-            image_bytes=image_bytes,
-            content_type=upload.content_type,
-            filename=upload.filename,
-            raise_http=True,
-        )
-        staged_upload = self._build_staged_upload(
-            image_bytes=image_bytes,
-            inspection=inspection,
-        )
-
-        job = self.storage.build_job(
-            job_id=str(uuid4()),
-            source_content_type=inspection.content_type,
-            source_filename=upload.filename,
-            source_size_bytes=inspection.size_bytes,
-        )
-
+        job = None
         try:
+            image_bytes = await self._read_upload_bytes(upload)
+            inspection = self._inspect_upload(
+                image_bytes=image_bytes,
+                content_type=upload.content_type,
+                filename=upload.filename,
+                raise_http=True,
+            )
+            staged_upload_metadata = self._build_staged_upload_metadata(inspection)
+
+            job = self.storage.build_job(
+                job_id=str(uuid4()),
+                source_content_type=inspection.content_type,
+                source_filename=upload.filename,
+                source_size_bytes=inspection.size_bytes,
+            )
+
             await self.storage.save_job(job)
             await self.storage.save_staged_upload(
                 job.job_id,
-                payload=staged_upload.payload,
-                metadata=StagedUploadMetadata.model_validate(
-                    staged_upload.model_dump(mode="python", exclude={"payload"})
-                ).model_dump(mode="json"),
+                payload=image_bytes,
+                metadata=staged_upload_metadata.model_dump(mode="json"),
             )
             await self.queue_pool.enqueue_job(
                 INGEST_MEDIA_JOB_NAME,
@@ -74,14 +73,23 @@ class MediaService:
                 content_type=inspection.content_type,
                 size_bytes=inspection.size_bytes,
             )
+        except HTTPException:
+            raise
         except Exception as exc:
-            await self.storage.delete_staged_upload(job.job_id)
-            await self.storage.delete_job(job.job_id)
-            logger.exception("Failed to enqueue media job", job_id=job.job_id)
+            if job is not None:
+                await self.storage.delete_staged_upload(job.job_id)
+                await self.storage.delete_job(job.job_id)
+            logger.exception(
+                "Failed to enqueue media job",
+                job_id=job.job_id if job is not None else None,
+            )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Unable to enqueue media job",
             ) from exc
+        finally:
+            with suppress(Exception):
+                await upload.close()
 
         return MediaJobQueuedResponse(job_id=job.job_id, status=job.status)
 
@@ -200,20 +208,37 @@ class MediaService:
         logger.warning("Media job failed", job_id=job_id, error=error)
 
     @staticmethod
-    def _build_staged_upload(
-        image_bytes: bytes,
+    def _build_staged_upload_metadata(
         inspection: MediaUploadInspection,
-    ) -> StagedMediaUpload:
-        return StagedMediaUpload.model_validate(
+    ) -> StagedUploadMetadata:
+        return StagedUploadMetadata.model_validate(
             {
                 "filename": inspection.filename,
-                "payload": image_bytes,
                 "content_type": inspection.content_type,
                 "size_bytes": inspection.size_bytes,
                 "width": inspection.width,
                 "height": inspection.height,
             }
         )
+
+    @staticmethod
+    async def _read_upload_bytes(upload: UploadFile) -> bytes:
+        total_size = 0
+        chunks = bytearray()
+
+        while True:
+            chunk = await upload.read(UPLOAD_READ_CHUNK_SIZE)
+            if not chunk:
+                return bytes(chunks)
+
+            total_size += len(chunk)
+            if total_size > environment.MAX_BODY_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail="Upload exceeds the maximum request size",
+                )
+
+            chunks.extend(chunk)
 
     def _inspect_upload(
         self,
@@ -392,7 +417,7 @@ class MediaService:
     def _http_exception_from_validation(self, exc: ValidationError) -> HTTPException:
         message = self._format_validation_error(exc)
         status_code = (
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            status.HTTP_413_CONTENT_TOO_LARGE
             if "maximum request size" in message.lower()
             else status.HTTP_400_BAD_REQUEST
         )

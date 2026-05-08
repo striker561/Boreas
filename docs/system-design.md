@@ -73,7 +73,7 @@ Shared storage lives in `core/storage` because it is infrastructure used across 
 ## Request And Job Flow
 
 1. `POST /v1/media/jobs`
-   The API validates the upload, stores the raw bytes temporarily in Redis, creates the job record, and queues the ingest worker.
+   The API reads the upload in bounded chunks, validates the media constraints, stores the raw bytes temporarily in Redis, creates the job record, and queues the ingest worker.
 2. `media` worker
    The worker reads the staged upload, normalizes it to the configured source cap, uploads the prepared source object, clears staged Redis data, and queues compute.
 3. `background removal` worker
@@ -105,6 +105,8 @@ We stage them in Redis briefly because:
 - it lets the ingest worker own normalization and source upload
 - the data is short-lived and explicitly deleted after ingest
 
+To keep upload staging from turning into the request bottleneck, the API reads `UploadFile` in bounded chunks, stages the raw upload only once, and leaves object-storage upload work to the worker side.
+
 We do not keep staged uploads around longer than necessary. Redis is a handoff buffer here, not a durable media store.
 
 ## Why Jobs Use Explicit Redis JSON And Bytes Keys
@@ -129,6 +131,8 @@ Prepared sources and final results are object-storage concerns, not Redis concer
 Redis stores coordination state. Object storage stores files.
 
 That separation keeps Redis memory bounded and makes result delivery cheaper through presigned URLs.
+
+The storage client is tuned for connection reuse and short network timeouts so worker uploads do not spend unnecessary time rebuilding slow outbound storage paths.
 
 ## Result Lifecycle Policy
 

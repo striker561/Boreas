@@ -101,15 +101,44 @@ class NormalizedMediaUpload(BaseModel):
 
 
 class MediaJobQueuedResponse(BaseModel):
-    job_id: str
-    status: JobStatus
+    job_id: str = Field(
+        description="Opaque identifier used to poll or stream the job state.",
+        examples=["3fa85f64-5717-4562-b3fc-2c963f66afa6"],
+    )
+    status: JobStatus = Field(
+        description="Initial lifecycle state recorded when the job is queued.",
+        examples=[JobStatus.queued],
+    )
 
 
 class MediaJobResponse(BaseModel):
-    job_id: str
-    status: JobStatus
-    result_url: str | None = None
-    error: str | None = None
-    attempts: int
-    created_at: datetime
-    updated_at: datetime
+    job_id: str = Field(
+        description="Opaque identifier returned when the job was created.",
+        examples=["3fa85f64-5717-4562-b3fc-2c963f66afa6"],
+    )
+    status: JobStatus = Field(
+        description="Current lifecycle state of the job.",
+        examples=[JobStatus.processing],
+    )
+    result_url: str | None = Field(
+        default=None,
+        description="Short-lived URL for downloading the final PNG once the job is complete.",
+        examples=[
+            "https://example.r2.cloudflarestorage.com/jobs/media/result/job.png?..."
+        ],
+    )
+    error: str | None = Field(
+        default=None,
+        description="Failure reason when the job reaches the failed state.",
+        examples=["Upload exceeds the maximum request size"],
+    )
+    attempts: int = Field(
+        description="How many processing attempts have been recorded for this job.",
+        examples=[1],
+    )
+    created_at: datetime = Field(
+        description="UTC timestamp when the job was created.",
+    )
+    updated_at: datetime = Field(
+        description="UTC timestamp when the job state last changed.",
+    )
