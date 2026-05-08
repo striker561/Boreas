@@ -410,9 +410,31 @@ class MediaService:
 
     @staticmethod
     def _format_validation_error(exc: ValidationError | ValueError) -> str:
-        if isinstance(exc, ValueError):
-            return str(exc)
-        return exc.errors()[0]["msg"] if exc.errors() else "Invalid media payload"
+        if isinstance(exc, ValidationError):
+            if not exc.errors():
+                return "Invalid media payload"
+
+            return MediaService._normalize_validation_message(exc.errors()[0]["msg"])
+
+        return MediaService._normalize_validation_message(str(exc))
+
+    @staticmethod
+    def _normalize_validation_message(message: str) -> str:
+        normalized_message = message.removeprefix("Value error, ").strip()
+
+        if "Image dimensions must be at most" in normalized_message:
+            return (
+                f"{normalized_message}. This limit protects worker memory and processing time. "
+                "Resize the image and try again."
+            )
+
+        if normalized_message == "Upload exceeds the maximum request size":
+            return (
+                f"{normalized_message}. Maximum allowed request size is "
+                f"{environment.MAX_BODY_SIZE // (1024 * 1024)} MB."
+            )
+
+        return normalized_message
 
     def _http_exception_from_validation(self, exc: ValidationError) -> HTTPException:
         message = self._format_validation_error(exc)

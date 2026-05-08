@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, cast
 
 import aioboto3
 from botocore.config import Config
@@ -42,11 +42,15 @@ class S3Backend:
 
     @asynccontextmanager
     async def _client(self) -> AsyncIterator[Any]:
-        async with self._session.client(
-            "s3",
-            endpoint_url=self._endpoint_url,
-            config=self._client_config,
-        ) as client:
+        client_context = cast(
+            Any,
+            self._session.client(
+                "s3",
+                endpoint_url=self._endpoint_url,
+                config=self._client_config,
+            ),
+        )
+        async with client_context as client:
             yield client
 
     async def upload_bytes(
@@ -97,6 +101,18 @@ class S3Backend:
                 await s3.head_object(Bucket=self._bucket, Key=key)
                 return True
             except ClientError as exc:
-                if exc.response["Error"]["Code"] in ("404", "NoSuchKey"):
+                error = exc.response.get("Error", {})
+                metadata = exc.response.get("ResponseMetadata", {})
+                error_code = str(error.get("Code", ""))
+                status_code = int(metadata.get("HTTPStatusCode") or 0)
+
+                if error_code in ("404", "NoSuchKey", "NotFound") or status_code == 404:
+                    return False
+
+                # R2 can answer missing HeadObject probes with HTTP 400 even when
+                # the client configuration is otherwise valid. Treat that probe
+                # result as "missing" so idempotency checks do not fail the worker
+                # before the real upload path runs.
+                if status_code == 400 and error_code == "400":
                     return False
                 raise

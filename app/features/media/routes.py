@@ -22,8 +22,9 @@ UploadFileInput = Annotated[
     File(
         description=(
             "PNG, JPEG, or WEBP image uploaded as multipart/form-data. "
-            "The request body may be up to 10 MB, and Boreas will normalize the "
-            "prepared worker input down to the configured source cap before compute begins."
+            "The request body may be up to 10 MB, image dimensions may be up to 4000x4000px, "
+            "and Boreas will normalize the prepared worker input down to the configured source "
+            "cap before compute begins."
         )
     ),
 ]
@@ -41,7 +42,10 @@ UploadFileInput = Annotated[
     responses={
         400: {
             "model": APIErrorResponseSchema,
-            "description": "The uploaded file is not a supported image.",
+            "description": (
+                "The uploaded file is invalid, uses an unsupported image type, or exceeds the "
+                "maximum supported image dimensions."
+            ),
         },
         413: {
             "model": APIErrorResponseSchema,

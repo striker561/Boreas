@@ -146,6 +146,13 @@ async def http_exception_handler(
         )
     response = APIResponse.error(
         msg=message,
+        errors=[
+            {
+                "loc": "request",
+                "msg": message,
+                "type": "http_error",
+            }
+        ],
         status=exc.status_code,
     )
     if exc.headers:

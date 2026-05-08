@@ -6,6 +6,7 @@ import os
 
 from fastapi import HTTPException
 from PIL import Image
+from pydantic import ValidationError
 
 os.environ.setdefault("APP_NAME", "Boreas")
 os.environ.setdefault("APP_VERSION", "1.0.0")
@@ -17,6 +18,7 @@ os.environ.setdefault("STORAGE_SECRET_ACCESS_KEY", "secret")
 os.environ.setdefault("STORAGE_BUCKET_NAME", "bucket")
 
 from app.core.storage import JobStatus, MediaJob, MediaStorageService
+from app.features.media.schemas import MediaUploadInspection
 from app.features.media import service as media_service_module
 from app.features.media.schemas import StagedMediaUpload
 from app.features.media.service import MediaService
@@ -192,6 +194,24 @@ class MediaFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(queue.jobs, [])
         self.assertIsNone(storage.staged_payload)
         self.assertTrue(upload.closed)
+
+    def test_format_validation_error_returns_friendly_dimension_message(self) -> None:
+        with self.assertRaises(ValidationError) as ctx:
+            MediaUploadInspection.model_validate(
+                {
+                    "filename": "too-large.png",
+                    "content_type": "image/png",
+                    "size_bytes": 1234,
+                    "width": 6775,
+                    "height": 4843,
+                }
+            )
+
+        message = MediaService._format_validation_error(ctx.exception)
+        self.assertEqual(
+            message,
+            "Image dimensions must be at most 4000x4000px. This limit protects worker memory and processing time. Resize the image and try again.",
+        )
 
     async def test_ingest_job_uploads_source_and_clears_staging(self) -> None:
         job = MediaJob(
