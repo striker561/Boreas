@@ -5,7 +5,11 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    OMP_NUM_THREADS=2 \
+    OMP_WAIT_POLICY=PASSIVE \
+    MALLOC_ARENA_MAX=2 \
+    U2NET_HOME=/home/appuser/.u2net
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -24,7 +28,9 @@ COPY README.md ./README.md
 COPY CONTRIBUTING.md ./CONTRIBUTING.md
 
 RUN useradd --create-home --uid 1000 --shell /bin/bash appuser \
+    && mkdir -p /home/appuser/.u2net \
     && chown -R appuser:appuser /app \
+    && chown -R appuser:appuser /home/appuser/.u2net \
     && chmod +x /app/start.sh
 
 USER appuser

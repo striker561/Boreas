@@ -13,6 +13,12 @@ media_workers="${MEDIA_WORKERS:-1}"
 background_removal_workers="${BACKGROUND_REMOVAL_WORKERS:-1}"
 declare -a worker_pids=()
 
+export OMP_NUM_THREADS="${REMBG_OMP_NUM_THREADS:-2}"
+export OMP_WAIT_POLICY="${OMP_WAIT_POLICY:-PASSIVE}"
+export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
+export U2NET_HOME="${U2NET_HOME:-${HOME}/.u2net}"
+mkdir -p "$U2NET_HOME"
+
 if [[ -n "${VIRTUAL_ENV:-}" ]]; then
 	arq_bin="${VIRTUAL_ENV}/bin/arq"
 	uvicorn_bin="${VIRTUAL_ENV}/bin/uvicorn"

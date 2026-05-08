@@ -67,6 +67,12 @@ Important settings:
 - `STORAGE_SECRET_ACCESS_KEY`
 - `STORAGE_BUCKET_NAME`
 - `REMBG_MODEL`
+- `REMBG_POST_PROCESS_MASK`
+- `REMBG_ALPHA_MATTING`
+- `REMBG_ALPHA_MATTING_FOREGROUND_THRESHOLD`
+- `REMBG_ALPHA_MATTING_BACKGROUND_THRESHOLD`
+- `REMBG_ALPHA_MATTING_ERODE_SIZE`
+- `REMBG_OMP_NUM_THREADS`
 - `LOG_LEVEL`
 - `LOGFIRE_SEND_TO_LOGFIRE`
 - `LOGFIRE_TOKEN`
@@ -74,6 +80,19 @@ Important settings:
 - `LOGFIRE_ENVIRONMENT`
 
 If `LOGFIRE_SEND_TO_LOGFIRE=false`, Boreas keeps logs local even when Logfire is installed.
+
+## Coolify On Hostinger KVM2
+
+For a small CPU-only VPS, keep the deployment conservative:
+
+- keep `MEDIA_WORKERS=1`
+- keep `BACKGROUND_REMOVAL_WORKERS=1`
+- use `REMBG_MODEL=isnet-general-use` for a better edge-quality and latency balance than `u2netp`
+- keep `REMBG_POST_PROCESS_MASK=true`
+- leave `REMBG_ALPHA_MATTING=false` by default and only enable it if you can afford lower throughput for finer edges like hair or fur
+- set `REMBG_OMP_NUM_THREADS=2` so ONNX does not oversubscribe the VM
+
+If Coolify lets you mount persistent storage, mount `U2NET_HOME` so model downloads survive redeploys instead of re-downloading on the next cold worker start.
 
 ## Local Development
 

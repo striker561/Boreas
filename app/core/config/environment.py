@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,7 +38,25 @@ class Environment(BaseSettings):
     STORAGE_BUCKET_NAME: str
     STORAGE_REGION: str = "auto"
 
-    REMBG_MODEL: str = "u2netp"
+    REMBG_MODEL: str = "isnet-general-use"
+    REMBG_POST_PROCESS_MASK: bool = True
+    REMBG_ALPHA_MATTING: bool = False
+    REMBG_ALPHA_MATTING_FOREGROUND_THRESHOLD: int = Field(
+        default=240,
+        ge=0,
+        le=255,
+    )
+    REMBG_ALPHA_MATTING_BACKGROUND_THRESHOLD: int = Field(
+        default=10,
+        ge=0,
+        le=255,
+    )
+    REMBG_ALPHA_MATTING_ERODE_SIZE: int = Field(
+        default=10,
+        ge=0,
+        le=64,
+    )
+    REMBG_OMP_NUM_THREADS: int = Field(default=2, ge=1, le=16)
 
     model_config = SettingsConfigDict(
         case_sensitive=True,
