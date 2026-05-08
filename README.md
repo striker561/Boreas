@@ -8,6 +8,7 @@ Boreas is a FastAPI background-removal backend built for a narrow job: accept up
 
 Architecture rationale lives in [docs/system-design.md](docs/system-design.md). Contributor rules live in [CONTRIBUTING.md](CONTRIBUTING.md).
 Deployment and model-tuning guidance lives in [docs/deployment-guide.md](docs/deployment-guide.md).
+Developer integration guidance lives in [docs/integration-guide.md](docs/integration-guide.md).
 
 ## What It Does
 

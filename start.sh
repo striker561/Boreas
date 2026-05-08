@@ -51,4 +51,4 @@ done
 
 # Keep uvicorn in the foreground so worker exits do not immediately terminate
 # container liveness; workers are cleaned up when the API process exits.
-"$uvicorn_bin" app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
+"$uvicorn_bin" app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --no-access-log

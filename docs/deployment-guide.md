@@ -67,23 +67,27 @@ Expose:
 
 - port `8000`
 
-Health check:
+Health checks are currently disabled in the image on purpose.
 
-- path: `/`
+Why:
 
-Use `/` for container liveness.
+- some platforms evaluate container health before Boreas finishes binding the HTTP port
+- a false unhealthy decision restarts the whole container
+- each restart forces another Redis/ARQ warmup cycle and another rembg worker startup, which is exactly the kind of churn that can spike memory on a small VPS
 
-Do not use `/health` as the container liveness probe. `/health` is the operational report and includes dependency checks. Boreas already warms Redis and ARQ during startup, so the Docker healthcheck should only verify that the API process is up and answering requests.
+Keep `/` as the lightweight reachability endpoint, but do not use Docker or Coolify liveness probing for Boreas until your platform timing is understood and stable.
 
-The container now gives startup more room before being marked unhealthy:
-
-- the app retries Redis and ARQ warmup during startup
-- the Docker healthcheck waits longer before the first liveness decision
+Do not use `/health` as the container liveness probe. `/health` is the operational report and includes dependency checks.
 
 If your platform still races Redis DNS or service startup, raise these settings:
 
 - `STARTUP_DEPENDENCY_MAX_ATTEMPTS`
 - `STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS`
+
+TODO:
+
+- re-introduce a container healthcheck only after verifying the platform waits long enough for Boreas startup and does not trigger rollback during rembg worker warmup
+- if you re-enable it later, point it at `/`, never `/health`
 
 Persist this directory if Coolify offers a volume:
 
@@ -112,6 +116,10 @@ Logfire note:
 
 - `LOGFIRE_ENVIRONMENT` is optional
 - leave it unset unless you explicitly want environment-based filtering in the Logfire UI
+
+Logging note:
+
+- Uvicorn access logs are disabled in the startup script because Boreas already emits structured application logs and duplicate request logging adds noise during probes and rollouts
 
 Why this is the default profile:
 
