@@ -12,30 +12,17 @@ Adding a new domain:
 """
 
 from typing import ClassVar
-from urllib.parse import urlparse
-
-from arq.connections import RedisSettings
 
 from app.core.config import environment
 from app.core.queue.names import QueueName
+from app.core.queue.pool import build_arq_redis_settings
 from app.features.media import ingest_media_job, warm_media_worker
 from app.features.rembg import (
     remove_background_job,
     warm_background_removal_worker,
 )
 
-
-def _redis_settings_from_url(url: str) -> RedisSettings:
-    parsed = urlparse(url)
-    return RedisSettings(
-        host=parsed.hostname or "localhost",
-        port=parsed.port or 6379,
-        database=int((parsed.path or "/0").lstrip("/") or "0"),
-        password=parsed.password,
-    )
-
-
-_redis = _redis_settings_from_url(environment.REDIS_URL)
+_redis = build_arq_redis_settings(environment.REDIS_URL)
 
 
 class MediaWorkerSettings:

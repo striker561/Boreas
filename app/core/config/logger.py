@@ -1,113 +1,127 @@
-import io
+import json
 import logging
 import sys
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 
 import logfire
 
-from app.core.config.environment import get_environment
-
-# ANSI colour codes — only applied in development
-_RESET = "\033[0m"
-_LEVEL_COLORS: dict[int, str] = {
-    logging.DEBUG: "\033[36m",  # cyan
-    logging.INFO: "\033[32m",  # green
-    logging.WARNING: "\033[33m",  # yellow
-    logging.ERROR: "\033[31m",  # red
-    logging.CRITICAL: "\033[35m",  # magenta
-}
+from app.core.config.environment import Environment, get_environment
 
 
-class _ColorFormatter(logging.Formatter):
-    """Console formatter that colourises the level name in development."""
+class _EventFormatter(logging.Formatter):
+    """Console formatter that appends structured event data."""
 
     def format(self, record: logging.LogRecord) -> str:
-        color = _LEVEL_COLORS.get(record.levelno, "")
-        record.levelname = f"{color}{record.levelname:<8}{_RESET}"
-        return super().format(record)
+        message = super().format(record)
+        event_data = getattr(record, "event_data", None)
+        if not event_data:
+            return message
+
+        extras = " ".join(
+            f"{key}={json.dumps(value, default=str, sort_keys=True)}"
+            for key, value in sorted(event_data.items())
+        )
+        return f"{message} | {extras}"
+
+
+def _resolve_log_level(level_name: str) -> int:
+    return getattr(logging, level_name.upper(), logging.INFO)
+
+
+@lru_cache(maxsize=1)
+def _get_logfire_client() -> Any:
+    settings = get_environment()
+    return logfire.configure(
+        local=not settings.IS_PRODUCTION,
+        send_to_logfire=(
+            settings.LOGFIRE_SEND_TO_LOGFIRE and bool(settings.LOGFIRE_TOKEN)
+        ),
+        token=settings.LOGFIRE_TOKEN,
+        service_name=settings.LOGFIRE_SERVICE_NAME,
+        service_version=settings.APP_VERSION,
+        environment=settings.LOGFIRE_ENVIRONMENT,
+        min_level=_resolve_log_level(settings.LOG_LEVEL),
+    )
+
+
+@lru_cache(maxsize=1)
+def _build_stdlib_logger() -> logging.Logger:
+    settings = get_environment()
+    _get_logfire_client()
+
+    application_logger = logging.getLogger(settings.LOGFIRE_SERVICE_NAME)
+    if application_logger.handlers:
+        return application_logger
+
+    application_logger.setLevel(_resolve_log_level(settings.LOG_LEVEL))
+    application_logger.propagate = False
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(
+        _EventFormatter(
+            fmt="%(asctime)s | %(levelname)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    application_logger.addHandler(console_handler)
+    return application_logger
 
 
 class AppLogger:
-    """
-    Simple singleton logger for the application.
+    """Small structured logger wrapper used across the app."""
 
-    Usage:
-        logger = get_logger()
-        logger.info("User logged in")
-        logger.error("Failed to connect", service="database")
-    """
+    def __init__(self, raw_logger: logging.Logger | None = None) -> None:
+        self._logger = raw_logger or _build_stdlib_logger()
 
-    _instance: Optional["AppLogger"] = None
-
-    def __new__(cls) -> "AppLogger":
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialize()
-        return cls._instance
-
-    def _initialize(self) -> None:
-        """Initialize logger once."""
-        settings = get_environment()
-
-        # Setup Logfire
-        if settings.IS_PRODUCTION:
-            logfire.configure(token=getattr(settings, "LOGFIRE_TOKEN", None))
-        else:
-            logfire.configure(send_to_logfire=False)
-
-        # Setup standard logger
-        self._logger = logging.getLogger(f"{settings.APP_NAME}-log")
-
-        if not self._logger.handlers:
-            if not settings.IS_PRODUCTION:
-                # Development: coloured console + file, DEBUG level
-                dev_fmt = "%(asctime)s | %(levelname)s | %(message)s"
-                console = logging.StreamHandler(
-                    io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-                )
-                console.setFormatter(_ColorFormatter(dev_fmt, datefmt="%H:%M:%S"))
-                self._logger.addHandler(console)
-
-                file_handler = logging.FileHandler("app.log", encoding="utf-8")
-                file_handler.setFormatter(
-                    logging.Formatter("%(asctime)s | %(levelname)-8s | %(message)s")
-                )
-                self._logger.addHandler(file_handler)
-                self._logger.setLevel(logging.DEBUG)
-            else:
-                self._logger.setLevel(logging.INFO)
-
-    def _format(self, message: str, **kwargs: Any) -> str:
-        """Format message with kwargs."""
-        if not kwargs:
-            return message
-        extras = " | ".join(f"{k}={v}" for k, v in kwargs.items())
-        return f"{message} | {extras}"
+    def _log(
+        self,
+        level: int,
+        logfire_method_name: str,
+        message: str,
+        *,
+        exc_info: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        event_data = {key: value for key, value in kwargs.items() if value is not None}
+        self._logger.log(
+            level,
+            message,
+            extra={"event_data": event_data},
+            exc_info=exc_info,
+        )
+        getattr(_get_logfire_client(), logfire_method_name)(message, **event_data)
 
     def debug(self, message: str, **kwargs: Any) -> None:
         """Log debug message."""
-        self._logger.debug(self._format(message, **kwargs))
+        self._log(logging.DEBUG, "debug", message, **kwargs)
 
     def info(self, message: str, **kwargs: Any) -> None:
         """Log info message."""
-        self._logger.info(self._format(message, **kwargs))
-        logfire.info(message, **kwargs)
+        self._log(logging.INFO, "info", message, **kwargs)
 
     def warning(self, message: str, **kwargs: Any) -> None:
         """Log warning message."""
-        self._logger.warning(self._format(message, **kwargs))
-        logfire.warn(message, **kwargs)
+        self._log(logging.WARNING, "warning", message, **kwargs)
 
     def error(self, message: str, exc_info: bool = False, **kwargs: Any) -> None:
         """Log error message."""
-        self._logger.error(self._format(message, **kwargs), exc_info=exc_info)
-        logfire.error(message, **kwargs)
+        self._log(
+            logging.ERROR,
+            "error",
+            message,
+            exc_info=exc_info,
+            **kwargs,
+        )
 
     def exception(self, message: str, **kwargs: Any) -> None:
         """Log exception with traceback."""
-        self._logger.exception(self._format(message, **kwargs))
-        logfire.exception(message, **kwargs)
+        event_data = {key: value for key, value in kwargs.items() if value is not None}
+        self._logger.exception(
+            message,
+            extra={"event_data": event_data},
+        )
+        _get_logfire_client().exception(message, **event_data)
 
 
 @lru_cache(maxsize=1)

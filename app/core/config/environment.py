@@ -16,6 +16,13 @@ class Environment(BaseSettings):
     TRUSTED_HOSTS: str
     MAX_BODY_SIZE: int = 10 * 1024 * 1024
     GZIP_MIN_SIZE: int = 1024
+    API_RATE_LIMIT: str = "5/minute"
+    UPLOAD_RATE_LIMIT: str = "5/minute"
+    LOG_LEVEL: str = "INFO"
+    LOGFIRE_TOKEN: str | None = None
+    LOGFIRE_SEND_TO_LOGFIRE: bool = False
+    LOGFIRE_SERVICE_NAME: str = "boreas"
+    LOGFIRE_ENVIRONMENT: str = "development"
 
     JOB_TTL_SECONDS: int = 60 * 60
     RESULT_URL_TTL_SECONDS: int = 60 * 60

@@ -5,7 +5,6 @@ from fastapi import Depends
 from app.core.storage import (
     MediaStorageService,
     build_media_storage_service,
-    get_media_storage_service,
 )
 from app.features.rembg.service import BackgroundRemovalProcessor
 
@@ -16,6 +15,6 @@ def build_background_removal_processor() -> BackgroundRemovalProcessor:
 
 
 async def get_background_removal_processor(
-    storage: MediaStorageService = Depends(get_media_storage_service),
+    storage: MediaStorageService = Depends(build_media_storage_service),
 ) -> BackgroundRemovalProcessor:
     return BackgroundRemovalProcessor(storage=storage)

@@ -7,7 +7,6 @@ from app.core.storage.media import (
     RESULT_CONTENT_TYPE,
     TERMINAL_JOB_STATUSES,
     build_media_storage_service,
-    get_media_storage_service,
 )
 from app.core.storage.dependency import (
     get_redis_cache,
@@ -22,6 +21,5 @@ __all__ = [
     "RedisCache",
     "TERMINAL_JOB_STATUSES",
     "build_media_storage_service",
-    "get_media_storage_service",
     "get_redis_cache",
 ]

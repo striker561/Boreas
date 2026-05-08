@@ -1,11 +1,11 @@
 from fastapi import APIRouter
 
+from app.features.health import router as health_router
 from app.features.media import router as media_router
 
-# Main API router with /api/v1 prefix
-feature_router = APIRouter(prefix="/v1")
+feature_router = APIRouter()
+api_v1_router = APIRouter(prefix="/v1")
 
-# Register all feature routers
-feature_router.include_router(
-    media_router,
-)
+api_v1_router.include_router(media_router)
+feature_router.include_router(health_router)
+feature_router.include_router(api_v1_router)

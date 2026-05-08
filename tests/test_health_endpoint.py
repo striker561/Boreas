@@ -22,12 +22,19 @@ class HealthEndpointTests(unittest.IsolatedAsyncioTestCase):
         fake_storage.queue_depth.side_effect = [3, 1]
         fake_storage.staged_upload_count.return_value = 2
 
-        with patch("app.main.get_redis_cache", return_value=fake_redis), patch(
-            "app.main.get_arq_pool", new=AsyncMock(return_value=object())
-        ), patch("app.main.build_media_storage_service", return_value=fake_storage):
-            from app.main import public_health
+        with patch(
+            "app.features.health.service.get_arq_pool",
+            new=AsyncMock(return_value=object()),
+        ):
+            from app.features.health.routes import public_health
+            from app.features.health.service import HealthService
 
-            response = await public_health()
+            response = await public_health(
+                service=HealthService(
+                    redis_cache=fake_redis,
+                    storage=fake_storage,
+                )
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = json.loads(response.body)["data"]
@@ -35,3 +42,4 @@ class HealthEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["queue_depths"]["boreas:compute"], 1)
         self.assertEqual(payload["staged_uploads"], 2)
         self.assertEqual(payload["limits"]["result_url_ttl_seconds"], 3600)
+        self.assertEqual(payload["limits"]["api_rate_limit"], "5/minute")

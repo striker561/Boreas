@@ -3,7 +3,6 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import Any
 
-from fastapi import Depends
 from pydantic import BaseModel, Field
 
 from app.core.config import environment
@@ -240,9 +239,3 @@ def build_media_storage_service() -> MediaStorageService:
         result_url_ttl_seconds=environment.RESULT_URL_TTL_SECONDS,
         staged_upload_ttl_seconds=environment.MEDIA_STAGING_TTL_SECONDS,
     )
-
-
-async def get_media_storage_service(
-    storage: MediaStorageService = Depends(build_media_storage_service),
-) -> MediaStorageService:
-    return storage

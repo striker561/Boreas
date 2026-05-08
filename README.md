@@ -1,56 +1,51 @@
 # Boreas
 
-Boreas is a small, high-throughput FastAPI service for background removal.
+Boreas is a FastAPI background-removal backend built for a narrow job: accept uploads quickly, push heavy work off-request, and stay understandable under load.
 
-The public API is intentionally simple:
+Architecture rationale lives in [docs/system-design.md](/Users/extreme/SRC/Local/Boreas/docs/system-design.md). Contributor rules live in [CONTRIBUTING.md](/Users/extreme/SRC/Local/Boreas/CONTRIBUTING.md).
 
-- upload an image
-- receive a job id immediately
-- poll or stream job status
-- fetch the processed result from object storage when the job completes
+## What It Does
 
-Internally, Boreas is optimized around two worker stages so the HTTP layer stays thin and fast:
+- `POST /v1/media/jobs` accepts an image and returns a job id immediately.
+- `GET /v1/media/jobs/{job_id}` returns job state and a result URL when ready.
+- `GET /v1/media/jobs/{job_id}/stream` streams job updates through SSE.
+- `/health` exposes public runtime health, queue depth, and staging metrics.
 
-1. `media` worker
-   Stages the raw upload in Redis, validates it, compresses it to the source size limit when needed, and uploads the prepared source image to Cloudflare R2 / S3-compatible storage.
-2. `background removal` worker
-   Downloads the prepared source from object storage, runs `rembg`, uploads the final PNG result, and marks the job complete.
+## Runtime Shape
 
-This split keeps request latency low while avoiding large byte payloads on the job queue itself.
+- `app/features/media`: public upload API, validation, staging, normalization, ingest worker
+- `app/features/rembg`: background-removal compute and compute worker
+- `app/features/health`: status and health endpoints
+- `app/core`: bootstrap, middleware, config, Redis, ARQ, shared storage primitives
 
-## How It Works
+The public request path stays thin. The queue carries job ids, not images. Redis stages uploads briefly, object storage holds prepared sources and final results, and the workers own the expensive work.
 
-### Request lifecycle
+## Why It Is Built This Way
 
-1. `POST /v1/media/jobs`
-   The API validates the upload metadata, stores the raw upload temporarily in Redis, creates the job record, and enqueues the media worker.
-2. `media` worker
-   The worker reads the staged upload from Redis, normalizes it to the configured source size cap, uploads the prepared source to object storage, clears the staged payload, and enqueues background removal.
-3. `background removal` worker
-   The worker downloads the prepared source, removes the background, uploads the result image, and updates the job state in Redis.
-4. `GET /v1/media/jobs/{job_id}` or `GET /v1/media/jobs/{job_id}/stream`
-   Clients fetch the job state or subscribe to SSE updates until the result is ready.
+- the API should return fast even when processing is expensive
+- input normalization and background removal are different responsibilities
+- Redis is good for short-lived state handoff, not long-lived file storage
+- object lifecycle has to be explicit or it turns into cost and cleanup drift
+- contributor ownership should be obvious from the folder layout
 
-### Data ownership
+The longer explanation is in [docs/system-design.md](/Users/extreme/SRC/Local/Boreas/docs/system-design.md).
 
-- `app/features/media`
-  Owns the public API, upload inspection, staging, normalization, and ingest worker.
-- `app/features/rembg`
-  Owns the background-removal processor and compute worker.
-- `app/core`
-  Owns app bootstrap, middleware, Redis/ARQ lifecycle, configuration, worker registry, and shared media persistence.
+## Abuse Protection
 
-## Why This Shape
+By default Boreas allows `5/minute` per client IP for API reads and uploads.
 
-Boreas is designed for small infrastructure with high request volume:
+That is intentionally conservative because uploads and rembg work are expensive. Both limits are environment-configurable through `API_RATE_LIMIT` and `UPLOAD_RATE_LIMIT`.
 
-- the API does lightweight validation and queues work quickly
-- worker services are warmed once on startup and reused from worker context
-- storage and Redis backends are shared singletons per process
-- the queue carries job ids, not binary blobs
-- staged raw uploads in Redis are short-lived and deleted after ingest
+If clients want frequent job updates, SSE is the intended path. Repeated polling will hit the limit faster and costs more.
 
-The only binary payload stored outside object storage is the short-lived staged upload used to hand work from the API process to the media worker.
+## Object Lifecycle
+
+- staged uploads expire from Redis quickly
+- job metadata expires through Redis TTL
+- prepared source objects should be deleted immediately after successful compute
+- final result objects should expire after one hour through an object storage lifecycle rule
+
+The app assumes the bucket lifecycle matches the one-hour result retention policy.
 
 ## Configuration
 
@@ -59,17 +54,26 @@ Copy `.env.example` to `.env` and set the required values.
 Important settings:
 
 - `REDIS_URL`
-- `STORAGE_ENDPOINT_URL`
-- `STORAGE_ACCESS_KEY_ID`
-- `STORAGE_SECRET_ACCESS_KEY`
-- `STORAGE_BUCKET_NAME`
+- `API_RATE_LIMIT`
+- `UPLOAD_RATE_LIMIT`
 - `JOB_TTL_SECONDS`
 - `RESULT_URL_TTL_SECONDS`
 - `MEDIA_SOURCE_MAX_BYTES`
 - `MEDIA_STAGING_TTL_SECONDS`
 - `MEDIA_WORKERS`
 - `BACKGROUND_REMOVAL_WORKERS`
+- `STORAGE_ENDPOINT_URL`
+- `STORAGE_ACCESS_KEY_ID`
+- `STORAGE_SECRET_ACCESS_KEY`
+- `STORAGE_BUCKET_NAME`
 - `REMBG_MODEL`
+- `LOG_LEVEL`
+- `LOGFIRE_SEND_TO_LOGFIRE`
+- `LOGFIRE_TOKEN`
+- `LOGFIRE_SERVICE_NAME`
+- `LOGFIRE_ENVIRONMENT`
+
+If `LOGFIRE_SEND_TO_LOGFIRE=false`, Boreas keeps logs local even when Logfire is installed.
 
 ## Local Development
 
@@ -81,49 +85,30 @@ cp .env.example .env
 ./start.sh
 ```
 
-The startup script launches:
+## VS Code Launching
 
-- one or more media workers
-- one or more background-removal workers
-- the FastAPI app through Uvicorn
+Use [.vscode/launch.json](/Users/extreme/SRC/Local/Boreas/.vscode/launch.json) for local debugging.
 
-## API Summary
+It includes:
 
-### Create job
+- `Boreas API`
+- `Boreas Media Worker`
+- `Boreas Background Removal Worker`
+- `Boreas API + Workers` compound launch
 
-`POST /v1/media/jobs`
+That gives you a clean way to debug the API and both worker processes without relying on the shell script.
 
-Accepts a single file upload.
+## Validation
 
-### Get job
+Run the current v1 test surface with:
 
-`GET /v1/media/jobs/{job_id}`
+```bash
+./.venv/bin/python -m unittest discover -s tests
+```
 
-Returns the current job state and result URL when complete.
+The suite currently covers:
 
-### Stream job
-
-`GET /v1/media/jobs/{job_id}/stream`
-
-Sends Server-Sent Events as the job status changes.
-
-## Operational Notes
-
-- Incoming request size can be larger than the final source cap.
-- The media worker is responsible for shrinking oversized uploads before compute begins.
-- Background removal outputs PNG because transparency must be preserved.
-- Jobs and staged uploads expire automatically through Redis TTLs.
-- Prepared source objects should be deleted immediately after successful compute.
-- Final result objects should expire after one hour through an object-storage lifecycle rule.
-
-## Project Goal
-
-Boreas is meant to stay small, explicit, and contributor-friendly.
-
-The codebase prefers clear ownership boundaries over convenience wrappers:
-
-- public upload/orchestration logic lives in `media`
-- compute logic lives in `rembg`
-- shared persistence logic lives in `core/storage`
-
-That separation is the main architectural rule to preserve as the project grows.
+- ingest lifecycle behavior
+- source deletion after compute
+- one-hour result URL assumptions
+- health metrics payload# Boreas

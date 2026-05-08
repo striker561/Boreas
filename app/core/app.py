@@ -31,12 +31,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await redis_cache.connect()
     await get_arq_pool()  # warm up arq connection on startup
+    logger.info("Application startup complete")
 
     try:
         yield
     finally:
         await redis_cache.disconnect()
         await close_arq_pool()
+        logger.info("Application shutdown complete")
 
 
 app = FastAPI(
@@ -99,6 +101,12 @@ async def rate_limit_exception_handler(
     request: Request, exc: RateLimitExceeded
 ) -> JSONResponse:
     """Handle SlowAPI rate limit exceeded exceptions."""
+    logger.warning(
+        "Rate limit exceeded",
+        method=request.method,
+        path=request.url.path,
+        client_ip=request.client.host if request.client else None,
+    )
     return APIResponse.error(
         msg="Too many requests. Please slow down and try again later.",
         status=429,
@@ -110,6 +118,12 @@ async def request_validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Handle FastAPI request validation errors (422) in APIResponse format."""
+    logger.warning(
+        "Request validation failed",
+        method=request.method,
+        path=request.url.path,
+        errors=len(exc.errors()),
+    )
     return APIResponse.validation(
         errors=format_validation_errors(exc.errors()),
         msg="Validation failed",
@@ -122,6 +136,14 @@ async def http_exception_handler(
 ) -> JSONResponse:
     """Handle HTTP exceptions raised by FastAPI and Starlette."""
     message = str(exc.detail) if exc.detail else "Request failed"
+    if exc.status_code >= 400:
+        logger.warning(
+            "HTTP exception raised",
+            method=request.method,
+            path=request.url.path,
+            status_code=exc.status_code,
+            detail=message,
+        )
     response = APIResponse.error(
         msg=message,
         status=exc.status_code,
@@ -136,6 +158,12 @@ async def validation_exception_handler(
     request: Request, exc: ValidationError
 ) -> JSONResponse:
     """Handle Pydantic validation errors."""
+    logger.warning(
+        "Pydantic validation failed",
+        method=request.method,
+        path=request.url.path,
+        errors=len(exc.errors()),
+    )
     return APIResponse.validation(
         errors=format_validation_errors(exc.errors()),
         msg="Validation failed",
@@ -145,7 +173,13 @@ async def validation_exception_handler(
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle unexpected exceptions."""
-    logger.error("Unhandled exception", error=str(exc), exc_info=True)
+    logger.error(
+        "Unhandled exception",
+        method=request.method,
+        path=request.url.path,
+        error=str(exc),
+        exc_info=True,
+    )
     return APIResponse.server_error(
         msg="An unexpected error occurred",
     )

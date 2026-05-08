@@ -29,6 +29,11 @@ class BackgroundRemovalProcessor:
 
         job.mark_processing()
         await self.storage.save_job(job)
+        logger.info(
+            "Background removal started",
+            job_id=job.job_id,
+            attempt=job.attempts,
+        )
 
         raw_image = await self.storage.download_source(job)
         output_image = await remove_background_image(raw_image)
@@ -37,6 +42,11 @@ class BackgroundRemovalProcessor:
 
         job.mark_complete()
         await self.storage.save_job(job)
+        logger.info(
+            "Background removal complete",
+            job_id=job.job_id,
+            result_key=job.result_key,
+        )
 
     async def fail_job(self, job_id: str, error: str) -> None:
         job = await self.storage.get_job(job_id)
@@ -45,6 +55,7 @@ class BackgroundRemovalProcessor:
 
         job.mark_failed(error)
         await self.storage.save_job(job)
+        logger.warning("Background removal failed", job_id=job_id, error=error)
 
     async def _delete_source_safely(self, job) -> None:
         try:

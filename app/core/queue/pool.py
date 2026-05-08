@@ -10,9 +10,21 @@ import contextlib
 from typing import Any
 from urllib.parse import urlparse
 
+from arq.connections import RedisSettings
+
 from app.core.config import environment, logger
 
 _arq_pool: Any = None
+
+
+def build_arq_redis_settings(url: str) -> RedisSettings:
+    parsed = urlparse(url)
+    return RedisSettings(
+        host=parsed.hostname or "localhost",
+        port=parsed.port or 6379,
+        database=int((parsed.path or "/0").lstrip("/") or "0"),
+        password=parsed.password,
+    )
 
 
 async def get_arq_pool() -> Any:
@@ -20,15 +32,8 @@ async def get_arq_pool() -> Any:
     global _arq_pool
     if _arq_pool is None:
         from arq import create_pool
-        from arq.connections import RedisSettings
 
-        parsed = urlparse(environment.REDIS_URL)
-        settings = RedisSettings(
-            host=parsed.hostname or "localhost",
-            port=parsed.port or 6379,
-            database=int((parsed.path or "/0").lstrip("/") or "0"),
-            password=parsed.password,
-        )
+        settings = build_arq_redis_settings(environment.REDIS_URL)
         _arq_pool = await create_pool(settings)
         logger.info("arq pool connected")
     return _arq_pool

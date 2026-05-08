@@ -35,12 +35,8 @@ limiter = Limiter(
     headers_enabled=True,
 )
 
-if _env.IS_PRODUCTION:
-    API_RATE_LIMIT = "60/minute"
-    UPLOAD_RATE_LIMIT = "10/minute"
-else:
-    API_RATE_LIMIT = "1000/minute"
-    UPLOAD_RATE_LIMIT = "1000/minute"
+API_RATE_LIMIT = _env.API_RATE_LIMIT
+UPLOAD_RATE_LIMIT = _env.UPLOAD_RATE_LIMIT
 
 
 __all__ = [

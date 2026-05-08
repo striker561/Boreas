@@ -12,6 +12,7 @@ from app.core.config import logger
 
 # Context variable for request ID
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="")
+_QUIET_PATHS = frozenset({"/", "/health"})
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -45,6 +46,9 @@ class LogMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
 
+        if request.url.path in _QUIET_PATHS:
+            return response
+
         process_time = time.time() - start
 
         # Get client IP (check X-Forwarded-For for proxies)
@@ -60,13 +64,19 @@ class LogMiddleware(BaseHTTPMiddleware):
         user_agent = request.headers.get("user-agent", "unknown")
 
         # Log request details
-        logger.info(
-            f"{request.method} {request.url.path} - {response.status_code}",
+        log_method = logger.info
+        if response.status_code >= 500:
+            log_method = logger.error
+        elif response.status_code >= 400:
+            log_method = logger.warning
+
+        log_method(
+            "HTTP request handled",
             method=request.method,
-            url=request.url.path,
+            path=request.url.path,
             status_code=response.status_code,
             request_id=request_id_ctx.get(""),
-            process_time=round(process_time, 4),
+            process_time_ms=round(process_time * 1000, 2),
             client_ip=client_ip,
             user_agent=user_agent,
         )

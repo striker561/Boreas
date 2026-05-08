@@ -68,6 +68,12 @@ class MediaService:
                 job.job_id,
                 _queue_name=QueueName.media,
             )
+            logger.info(
+                "Media job queued",
+                job_id=job.job_id,
+                content_type=inspection.content_type,
+                size_bytes=inspection.size_bytes,
+            )
         except Exception as exc:
             await self.storage.delete_staged_upload(job.job_id)
             await self.storage.delete_job(job.job_id)
@@ -137,6 +143,12 @@ class MediaService:
             normalized_upload.payload,
             content_type=normalized_upload.content_type,
         )
+        logger.info(
+            "Prepared source uploaded",
+            job_id=job.job_id,
+            source_size_bytes=normalized_upload.size_bytes,
+            content_type=normalized_upload.content_type,
+        )
 
         job.source_content_type = normalized_upload.content_type
         job.source_size_bytes = normalized_upload.size_bytes
@@ -185,6 +197,7 @@ class MediaService:
         await self.storage.delete_staged_upload(job_id)
         job.mark_failed(error)
         await self.storage.save_job(job)
+        logger.warning("Media job failed", job_id=job_id, error=error)
 
     @staticmethod
     def _build_staged_upload(
