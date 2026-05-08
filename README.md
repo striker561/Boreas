@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Boreas" width="300" />
+</p>
+
 # Boreas
 
 Boreas is a FastAPI background-removal backend built for a narrow job: accept uploads quickly, push heavy work off-request, and stay understandable under load.
