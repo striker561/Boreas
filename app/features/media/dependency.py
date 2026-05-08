@@ -2,9 +2,9 @@ from typing import Any
 
 from fastapi import Depends
 
+from app.core.storage import MediaStorageService, build_media_storage_service
 from app.core.queue import get_arq_pool
 from app.features.media.service import MediaService
-from app.features.storage import MediaStorageService, build_media_storage_service
 
 
 def build_media_service(

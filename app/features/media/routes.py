@@ -5,10 +5,10 @@ from collections.abc import AsyncGenerator
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import StreamingResponse
 
+from app.core.storage import TERMINAL_JOB_STATUSES
 from app.core.rate_limit import rate_limit_default, rate_limit_upload
 from app.features.media.dependency import get_media_service
 from app.features.media.service import MediaService
-from app.features.storage import TERMINAL_JOB_STATUSES
 from app.helpers import APIResponse
 
 router = APIRouter(prefix="/media", tags=["Media"])

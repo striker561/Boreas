@@ -22,10 +22,8 @@ Use these boundaries consistently:
   Public API, upload validation, staging, normalization, and media ingest worker.
 - `app/features/rembg`
   Background-removal compute logic only.
-- `app/features/storage`
-  Redis job state, staged upload persistence, and object storage helpers.
 - `app/core`
-  App bootstrapping, middleware, shared infrastructure, config, and worker registry.
+  App bootstrapping, middleware, shared infrastructure, config, worker registry, and shared media persistence.
 
 Do not reintroduce compatibility wrapper packages or ambiguous “service” layers that hide ownership.
 
@@ -64,6 +62,7 @@ Make sure your change still preserves this flow:
 1. API stages upload and creates a job quickly.
 2. Media worker uploads the normalized source to object storage.
 3. Background-removal worker processes the stored source and uploads the final result.
+4. Prepared source objects are deleted after compute, and final result objects expire after one hour through storage lifecycle policy.
 
 ## Review Standard
 

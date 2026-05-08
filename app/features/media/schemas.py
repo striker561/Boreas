@@ -3,8 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.config import environment
+from app.core.storage import JobStatus
 from app.features.media.enums import ALLOWED_IMAGE_CONTENT_TYPES, MAX_IMAGE_DIMENSION
-from app.features.storage.enums import JobStatus
 
 
 class MediaUploadInspection(BaseModel):
@@ -40,7 +40,7 @@ class StagedMediaUpload(BaseModel):
     height: int = Field(gt=0)
 
     @model_validator(mode="after")
-    def validate_constraints(self) -> "PreparedMediaSource":
+    def validate_constraints(self) -> "StagedMediaUpload":
         if self.content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
             raise ValueError("Queued media has an unsupported content type")
         if len(self.payload) != self.size_bytes:

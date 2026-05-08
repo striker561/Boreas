@@ -17,6 +17,8 @@ class Environment(BaseSettings):
     MAX_BODY_SIZE: int = 10 * 1024 * 1024
     GZIP_MIN_SIZE: int = 1024
 
+    JOB_TTL_SECONDS: int = 60 * 60
+    RESULT_URL_TTL_SECONDS: int = 60 * 60
     MEDIA_SOURCE_MAX_BYTES: int = 2 * 1024 * 1024
     MEDIA_STAGING_TTL_SECONDS: int = 15 * 60
     MEDIA_WORKERS: int = 1
@@ -27,7 +29,6 @@ class Environment(BaseSettings):
     STORAGE_SECRET_ACCESS_KEY: str
     STORAGE_BUCKET_NAME: str
     STORAGE_REGION: str = "auto"
-    STORAGE_TTL_HOURS: int = 1
 
     REMBG_MODEL: str = "u2netp"
 

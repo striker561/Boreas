@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from app.core.config import environment, logger
 from app.core.queue import QueueName
+from app.core.storage import JobStatus, MediaStorageService
 from app.features.media.enums import (
     ALLOWED_IMAGE_CONTENT_TYPES,
     INGEST_MEDIA_JOB_NAME,
@@ -21,7 +22,6 @@ from app.features.media.schemas import (
     StagedMediaUpload,
 )
 from app.features.rembg.enums import REMOVE_BACKGROUND_JOB_NAME
-from app.features.storage import JobStatus, MediaStorageService
 
 
 class MediaService:

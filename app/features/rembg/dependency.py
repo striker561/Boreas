@@ -2,12 +2,12 @@ from functools import lru_cache
 
 from fastapi import Depends
 
-from app.features.rembg.service import BackgroundRemovalProcessor
-from app.features.storage import (
+from app.core.storage import (
     MediaStorageService,
     build_media_storage_service,
     get_media_storage_service,
 )
+from app.features.rembg.service import BackgroundRemovalProcessor
 
 
 @lru_cache(maxsize=1)

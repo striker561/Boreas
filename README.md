@@ -37,10 +37,8 @@ This split keeps request latency low while avoiding large byte payloads on the j
   Owns the public API, upload inspection, staging, normalization, and ingest worker.
 - `app/features/rembg`
   Owns the background-removal processor and compute worker.
-- `app/features/storage`
-  Owns job persistence, staged upload persistence, and object storage access helpers.
 - `app/core`
-  Owns app bootstrap, middleware, Redis/ARQ lifecycle, configuration, and worker registry.
+  Owns app bootstrap, middleware, Redis/ARQ lifecycle, configuration, worker registry, and shared media persistence.
 
 ## Why This Shape
 
@@ -65,6 +63,8 @@ Important settings:
 - `STORAGE_ACCESS_KEY_ID`
 - `STORAGE_SECRET_ACCESS_KEY`
 - `STORAGE_BUCKET_NAME`
+- `JOB_TTL_SECONDS`
+- `RESULT_URL_TTL_SECONDS`
 - `MEDIA_SOURCE_MAX_BYTES`
 - `MEDIA_STAGING_TTL_SECONDS`
 - `MEDIA_WORKERS`
@@ -113,6 +113,8 @@ Sends Server-Sent Events as the job status changes.
 - The media worker is responsible for shrinking oversized uploads before compute begins.
 - Background removal outputs PNG because transparency must be preserved.
 - Jobs and staged uploads expire automatically through Redis TTLs.
+- Prepared source objects should be deleted immediately after successful compute.
+- Final result objects should expire after one hour through an object-storage lifecycle rule.
 
 ## Project Goal
 
@@ -122,6 +124,6 @@ The codebase prefers clear ownership boundaries over convenience wrappers:
 
 - public upload/orchestration logic lives in `media`
 - compute logic lives in `rembg`
-- persistence logic lives in `storage`
+- shared persistence logic lives in `core/storage`
 
 That separation is the main architectural rule to preserve as the project grows.

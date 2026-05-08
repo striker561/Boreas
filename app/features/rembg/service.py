@@ -1,5 +1,5 @@
 from app.core.config import logger
-from app.features.storage import MediaStorageService
+from app.core.storage import MediaStorageService
 from app.lib.rembg import remove_background_image, warm_rembg_session
 
 
