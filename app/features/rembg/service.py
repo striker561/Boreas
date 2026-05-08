@@ -20,7 +20,7 @@ class BackgroundRemovalProcessor:
             job.mark_complete()
             await self.storage.save_job(job)
             if await self.storage.source_exists(job):
-                await self.storage.delete_source(job)
+                await self._delete_source_safely(job)
             return
 
         if not await self.storage.source_exists(job):
@@ -33,7 +33,7 @@ class BackgroundRemovalProcessor:
         raw_image = await self.storage.download_source(job)
         output_image = await remove_background_image(raw_image)
         await self.storage.upload_result(job, output_image)
-        await self.storage.delete_source(job)
+        await self._delete_source_safely(job)
 
         job.mark_complete()
         await self.storage.save_job(job)
@@ -45,3 +45,13 @@ class BackgroundRemovalProcessor:
 
         job.mark_failed(error)
         await self.storage.save_job(job)
+
+    async def _delete_source_safely(self, job) -> None:
+        try:
+            await self.storage.delete_source(job)
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete prepared source object",
+                job_id=job.job_id,
+                error=type(exc).__name__,
+            )

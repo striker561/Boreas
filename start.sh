@@ -28,6 +28,7 @@ cleanup() {
 	for pid in "${worker_pids[@]:-}"; do
 		kill "$pid" 2>/dev/null || true
 	done
+	wait || true
 }
 
 trap cleanup EXIT INT TERM
@@ -42,4 +43,10 @@ for _ in $(seq 1 "$background_removal_workers"); do
 	worker_pids+=("$!")
 done
 
-"$uvicorn_bin" app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
+"$uvicorn_bin" app.main:app --host 0.0.0.0 --port "${PORT:-8000}" &
+worker_pids+=("$!")
+
+wait -n "${worker_pids[@]}"
+exit_code=$?
+cleanup
+exit "$exit_code"

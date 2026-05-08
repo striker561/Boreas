@@ -1,4 +1,4 @@
-import pickle
+import json
 from typing import Any
 
 from redis.asyncio import ConnectionPool, Redis
@@ -87,8 +87,8 @@ class RedisCache:
 
         return self.redis
 
-    async def get(self, key: str, default: Any = None) -> Any:
-        """Get value from cache. Returns pickled data or default."""
+    async def get_json(self, key: str, default: Any = None) -> Any:
+        """Get JSON value from Redis and decode it into Python data."""
         try:
             client = await self._get_client()
             value = await client.get(key)
@@ -96,20 +96,46 @@ class RedisCache:
             if value is None:
                 return default
 
-            return pickle.loads(value)  # noqa: S301
+            if isinstance(value, bytes):
+                value = value.decode("utf-8")
+            return json.loads(value)
         except Exception as e:
-            logger.error("Redis get failed", key=key, error=type(e).__name__)
+            logger.error("Redis JSON get failed", key=key, error=type(e).__name__)
             return default
 
-    async def set(self, key: str, value: Any, ttl: int | None = None) -> bool:
-        """Set value in cache with optional TTL (seconds)."""
+    async def set_json(self, key: str, value: Any, ttl: int | None = None) -> bool:
+        """Set JSON value in Redis with optional TTL in seconds."""
         try:
             client = await self._get_client()
-            data = pickle.dumps(value)
+            data = json.dumps(value, separators=(",", ":")).encode("utf-8")
             result = await client.set(key, data, ex=ttl)
             return result is True
         except Exception as e:
-            logger.error("Redis set failed", key=key, error=type(e).__name__)
+            logger.error("Redis JSON set failed", key=key, error=type(e).__name__)
+            return False
+
+    async def get_bytes(self, key: str, default: bytes | None = None) -> bytes | None:
+        """Get raw bytes from Redis."""
+        try:
+            client = await self._get_client()
+            value = await client.get(key)
+            if value is None:
+                return default
+            if not isinstance(value, bytes):
+                raise TypeError("Redis raw value must be bytes")
+            return value
+        except Exception as e:
+            logger.error("Redis bytes get failed", key=key, error=type(e).__name__)
+            return default
+
+    async def set_bytes(self, key: str, value: bytes, ttl: int | None = None) -> bool:
+        """Set raw bytes in Redis with optional TTL in seconds."""
+        try:
+            client = await self._get_client()
+            result = await client.set(key, value, ex=ttl)
+            return result is True
+        except Exception as e:
+            logger.error("Redis bytes set failed", key=key, error=type(e).__name__)
             return False
 
     async def delete(self, *keys: str) -> int:
@@ -131,6 +157,31 @@ class RedisCache:
             return await client.exists(key) > 0
         except Exception:
             return False
+
+    async def zcard(self, key: str) -> int:
+        """Return the number of members in a sorted set."""
+        try:
+            client = await self._get_client()
+            return int(await client.zcard(key) or 0)
+        except Exception as e:
+            logger.error("Redis zcard failed", key=key, error=type(e).__name__)
+            return 0
+
+    async def count_keys(self, pattern: str) -> int:
+        """Count keys matching a Redis glob pattern using SCAN."""
+        try:
+            client = await self._get_client()
+            total = 0
+            async for _ in client.scan_iter(match=pattern, count=100):
+                total += 1
+            return total
+        except Exception as e:
+            logger.error(
+                "Redis key count failed",
+                pattern=pattern,
+                error=type(e).__name__,
+            )
+            return 0
 
     async def incr(self, key: str, expire_if_new: int | None = None) -> int:
         """

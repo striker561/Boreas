@@ -15,8 +15,6 @@ from app.core.rate_limit import (
     API_RATE_LIMIT,
     UPLOAD_RATE_LIMIT,
     limiter,
-    rate_limit_default,
-    rate_limit_upload,
 )
 from app.core.storage import (
     get_redis_cache,
@@ -38,6 +36,4 @@ __all__ = [
     "get_redis_cache",
     "limiter",
     "logger",
-    "rate_limit_default",
-    "rate_limit_upload",
 ]

@@ -54,6 +54,28 @@ class StagedMediaUpload(BaseModel):
         return self
 
 
+class StagedUploadMetadata(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    filename: str | None = Field(default=None, max_length=255)
+    content_type: str
+    size_bytes: int = Field(gt=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_constraints(self) -> "StagedUploadMetadata":
+        if self.content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+            raise ValueError("Queued media metadata has an unsupported content type")
+        if self.size_bytes > environment.MAX_BODY_SIZE:
+            raise ValueError("Queued media metadata exceeds the maximum request size")
+        if self.width > MAX_IMAGE_DIMENSION or self.height > MAX_IMAGE_DIMENSION:
+            raise ValueError(
+                f"Image dimensions must be at most {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION}px"
+            )
+        return self
+
+
 class NormalizedMediaUpload(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 

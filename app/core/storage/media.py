@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 from functools import lru_cache
+from typing import Any
 
 from fastapi import Depends
 from pydantic import BaseModel, Field
@@ -100,6 +101,12 @@ class MediaStorageService:
     def staged_upload_key(self, job_id: str) -> str:
         return f"jobs:media:staged-upload:{job_id}"
 
+    def staged_upload_metadata_key(self, job_id: str) -> str:
+        return f"{self.staged_upload_key(job_id)}:meta"
+
+    def staged_upload_payload_key(self, job_id: str) -> str:
+        return f"{self.staged_upload_key(job_id)}:payload"
+
     def build_job(
         self,
         job_id: str,
@@ -118,7 +125,7 @@ class MediaStorageService:
         )
 
     async def save_job(self, job: MediaJob) -> None:
-        saved = await self.redis_cache.set(
+        saved = await self.redis_cache.set_json(
             self.job_key(job.job_id),
             job.model_dump(mode="json"),
             ttl=self.job_ttl_seconds,
@@ -127,7 +134,7 @@ class MediaStorageService:
             raise RuntimeError("Failed to persist media job in Redis")
 
     async def get_job(self, job_id: str) -> MediaJob | None:
-        payload = await self.redis_cache.get(self.job_key(job_id))
+        payload = await self.redis_cache.get_json(self.job_key(job_id))
         if payload is None:
             return None
         return MediaJob.model_validate(payload)
@@ -138,26 +145,47 @@ class MediaStorageService:
     async def save_staged_upload(
         self,
         job_id: str,
-        payload: dict[str, object],
+        *,
+        payload: bytes,
+        metadata: dict[str, Any],
     ) -> None:
-        saved = await self.redis_cache.set(
-            self.staged_upload_key(job_id),
+        payload_saved = await self.redis_cache.set_bytes(
+            self.staged_upload_payload_key(job_id),
             payload,
             ttl=self.staged_upload_ttl_seconds,
         )
-        if not saved:
+        metadata_saved = await self.redis_cache.set_json(
+            self.staged_upload_metadata_key(job_id),
+            metadata,
+            ttl=self.staged_upload_ttl_seconds,
+        )
+        if payload_saved and metadata_saved:
+            return
+
+        await self.delete_staged_upload(job_id)
+        if not payload_saved:
+            raise RuntimeError("Failed to persist staged upload payload in Redis")
+        if not metadata_saved:
             raise RuntimeError("Failed to persist staged upload in Redis")
 
-    async def get_staged_upload(self, job_id: str) -> dict[str, object] | None:
-        payload = await self.redis_cache.get(self.staged_upload_key(job_id))
+    async def get_staged_upload_metadata(self, job_id: str) -> dict[str, Any] | None:
+        payload = await self.redis_cache.get_json(
+            self.staged_upload_metadata_key(job_id)
+        )
         if payload is None:
             return None
         if not isinstance(payload, dict):
             raise TypeError("Staged upload payload must be a dictionary")
         return payload
 
+    async def get_staged_upload_payload(self, job_id: str) -> bytes | None:
+        return await self.redis_cache.get_bytes(self.staged_upload_payload_key(job_id))
+
     async def delete_staged_upload(self, job_id: str) -> None:
-        await self.redis_cache.delete(self.staged_upload_key(job_id))
+        await self.redis_cache.delete(
+            self.staged_upload_metadata_key(job_id),
+            self.staged_upload_payload_key(job_id),
+        )
 
     async def upload_source(
         self,
@@ -195,6 +223,12 @@ class MediaStorageService:
             job.result_key,
             expires_in=self.result_url_ttl_seconds,
         )
+
+    async def queue_depth(self, queue_name: str) -> int:
+        return await self.redis_cache.zcard(queue_name)
+
+    async def staged_upload_count(self) -> int:
+        return await self.redis_cache.count_keys("jobs:media:staged-upload:*:meta")
 
 
 @lru_cache(maxsize=1)

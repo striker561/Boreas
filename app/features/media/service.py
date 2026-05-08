@@ -20,6 +20,7 @@ from app.features.media.schemas import (
     MediaUploadInspection,
     NormalizedMediaUpload,
     StagedMediaUpload,
+    StagedUploadMetadata,
 )
 from app.features.rembg.enums import REMOVE_BACKGROUND_JOB_NAME
 
@@ -57,7 +58,10 @@ class MediaService:
             await self.storage.save_job(job)
             await self.storage.save_staged_upload(
                 job.job_id,
-                staged_upload.model_dump(mode="python"),
+                payload=staged_upload.payload,
+                metadata=StagedUploadMetadata.model_validate(
+                    staged_upload.model_dump(mode="python", exclude={"payload"})
+                ).model_dump(mode="json"),
             )
             await self.queue_pool.enqueue_job(
                 INGEST_MEDIA_JOB_NAME,
@@ -98,13 +102,21 @@ class MediaService:
             )
             return
 
-        staged_upload_payload = await self.storage.get_staged_upload(job.job_id)
-        if staged_upload_payload is None:
+        staged_upload_metadata = await self.storage.get_staged_upload_metadata(
+            job.job_id
+        )
+        staged_upload_payload = await self.storage.get_staged_upload_payload(job.job_id)
+        if staged_upload_metadata is None or staged_upload_payload is None:
             await self.fail_job(job_id, "Queued upload expired before ingestion")
             return
 
         try:
-            staged_upload = StagedMediaUpload.model_validate(staged_upload_payload)
+            staged_upload = StagedMediaUpload.model_validate(
+                {
+                    **staged_upload_metadata,
+                    "payload": staged_upload_payload,
+                }
+            )
         except ValidationError as exc:
             await self.fail_job(job_id, self._format_validation_error(exc))
             return
