@@ -1,0 +1,56 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Boreas API",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Boreas Media Worker",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "arq",
+      "args": ["app.core.queue.registry.MediaWorkerSettings"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Boreas Background Removal Worker",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "arq",
+      "args": ["app.core.queue.registry.BackgroundRemovalWorkerSettings"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Boreas API + Workers",
+      "configurations": [
+        "Boreas API",
+        "Boreas Media Worker",
+        "Boreas Background Removal Worker"
+      ],
+      "stopAll": true
+    }
+  ]
+}
