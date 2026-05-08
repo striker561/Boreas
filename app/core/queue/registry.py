@@ -11,12 +11,14 @@ Adding a new domain:
     4. Add an arq launch line in the startup script
 """
 
+from typing import ClassVar
 from urllib.parse import urlparse
 
 from arq.connections import RedisSettings
 
 from app.core.config import environment
 from app.core.queue.names import QueueName
+from app.features.rembg import run_rembg_job, warm_rembg_worker
 
 
 def _redis_settings_from_url(url: str) -> RedisSettings:
@@ -32,3 +34,12 @@ def _redis_settings_from_url(url: str) -> RedisSettings:
 _redis = _redis_settings_from_url(environment.REDIS_URL)
 
 
+class RembgWorkerSettings:
+    functions: ClassVar[list] = [run_rembg_job]
+    redis_settings = _redis
+    queue_name = QueueName.compute
+    on_startup = warm_rembg_worker
+    max_jobs = 1
+    job_timeout = 300
+    keep_result = 0
+    max_tries = 3

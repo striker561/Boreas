@@ -1,4 +1,4 @@
-"""Database and cache dependencies for the application."""
+"""Redis cache dependencies for the application."""
 
 from app.core.config import environment
 from app.core.storage.redis import RedisCache

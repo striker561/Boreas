@@ -59,9 +59,6 @@ class LogMiddleware(BaseHTTPMiddleware):
         # Get user agent
         user_agent = request.headers.get("user-agent", "unknown")
 
-        # Get user ID if authenticated (from request.state if available)
-        user_id = getattr(request.state, "unique_id", None)
-
         # Log request details
         logger.info(
             f"{request.method} {request.url.path} - {response.status_code}",
@@ -72,7 +69,6 @@ class LogMiddleware(BaseHTTPMiddleware):
             process_time=round(process_time, 4),
             client_ip=client_ip,
             user_agent=user_agent,
-            user_id=user_id,
         )
 
         return response

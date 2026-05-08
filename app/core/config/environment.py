@@ -17,8 +17,7 @@ class Environment(BaseSettings):
     MAX_BODY_SIZE: int = 10 * 1024 * 1024
     GZIP_MIN_SIZE: int = 1024
 
-    BG_WORKERS: int = 2
-    MEDIA_WORKERS: int = 1
+    REMBG_WORKERS: int = 2
 
     STORAGE_ENDPOINT_URL: str = ""
     STORAGE_ACCESS_KEY_ID: str
@@ -26,6 +25,8 @@ class Environment(BaseSettings):
     STORAGE_BUCKET_NAME: str
     STORAGE_REGION: str = "auto"
     STORAGE_TTL_HOURS: int = 1
+
+    REMBG_MODEL: str = "u2netp"
 
     model_config = SettingsConfigDict(
         case_sensitive=True,

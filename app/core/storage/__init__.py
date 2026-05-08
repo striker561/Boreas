@@ -1,4 +1,4 @@
-"""Storage module - Database engine, session manager, and dependencies."""
+"""Redis-backed storage helpers used by the core layer."""
 
 from app.core.storage.dependency import (
     get_redis_cache,

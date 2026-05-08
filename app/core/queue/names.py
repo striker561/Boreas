@@ -9,5 +9,7 @@ class QueueName(StrEnum):
     Add new names here only when a feature is ready to enqueue to them.
     """
 
-    remover = "boreas:remover"
+    notifications = "boreas:notifications"
     media = "boreas:media"
+    compute = "boreas:compute"
+    analytics = "boreas:analytics"

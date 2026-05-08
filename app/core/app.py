@@ -21,6 +21,7 @@ from app.core.middleware import (
 from app.core.queue import close_arq_pool, get_arq_pool
 from app.core.rate_limit import limiter
 from app.core.storage.dependency import get_redis_cache
+from app.features.client import router as rembg_router
 from app.helpers import APIResponse, format_validation_errors
 
 
@@ -91,10 +92,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(rembg_router)
+
 
 # Exception Handlers
 @app.exception_handler(RateLimitExceeded)
-async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+async def rate_limit_exception_handler(
+    request: Request, exc: RateLimitExceeded
+) -> JSONResponse:
     """Handle SlowAPI rate limit exceeded exceptions."""
     return APIResponse.error(
         msg="Too many requests. Please slow down and try again later.",
@@ -114,7 +119,9 @@ async def request_validation_exception_handler(
 
 
 @app.exception_handler(ValidationError)
-async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: ValidationError
+) -> JSONResponse:
     """Handle Pydantic validation errors."""
     return APIResponse.validation(
         errors=format_validation_errors(exc.errors()),
