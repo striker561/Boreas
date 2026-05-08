@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from fastapi import Depends
 
 from app.features.rembg.service import BackgroundRemovalProcessor
@@ -8,6 +10,7 @@ from app.features.storage import (
 )
 
 
+@lru_cache(maxsize=1)
 def build_background_removal_processor() -> BackgroundRemovalProcessor:
     return BackgroundRemovalProcessor(storage=build_media_storage_service())
 

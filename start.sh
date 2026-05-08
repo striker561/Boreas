@@ -10,7 +10,7 @@ if [[ -f .env ]]; then
 fi
 
 media_workers="${MEDIA_WORKERS:-1}"
-rembg_workers="${REMBG_WORKERS:-1}"
+background_removal_workers="${BACKGROUND_REMOVAL_WORKERS:-1}"
 declare -a worker_pids=()
 
 if [[ -n "${VIRTUAL_ENV:-}" ]]; then
@@ -37,7 +37,7 @@ for _ in $(seq 1 "$media_workers"); do
 	worker_pids+=("$!")
 done
 
-for _ in $(seq 1 "$rembg_workers"); do
+for _ in $(seq 1 "$background_removal_workers"); do
 	"$arq_bin" app.core.queue.registry.BackgroundRemovalWorkerSettings &
 	worker_pids+=("$!")
 done

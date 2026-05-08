@@ -18,8 +18,11 @@ from arq.connections import RedisSettings
 
 from app.core.config import environment
 from app.core.queue.names import QueueName
-from app.features.media import prepare_media_job, warm_media_worker
-from app.features.rembg import remove_background_job, warm_rembg_worker
+from app.features.media import ingest_media_job, warm_media_worker
+from app.features.rembg import (
+    remove_background_job,
+    warm_background_removal_worker,
+)
 
 
 def _redis_settings_from_url(url: str) -> RedisSettings:
@@ -36,7 +39,7 @@ _redis = _redis_settings_from_url(environment.REDIS_URL)
 
 
 class MediaWorkerSettings:
-    functions: ClassVar[list] = [prepare_media_job]
+    functions: ClassVar[list] = [ingest_media_job]
     redis_settings = _redis
     queue_name = QueueName.media
     on_startup = warm_media_worker
@@ -50,7 +53,7 @@ class BackgroundRemovalWorkerSettings:
     functions: ClassVar[list] = [remove_background_job]
     redis_settings = _redis
     queue_name = QueueName.compute
-    on_startup = warm_rembg_worker
+    on_startup = warm_background_removal_worker
     max_jobs = 1
     job_timeout = 300
     keep_result = 0

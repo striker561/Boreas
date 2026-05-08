@@ -10,14 +10,15 @@ from app.core.config import environment, logger
 from app.core.queue import QueueName
 from app.features.media.enums import (
     ALLOWED_IMAGE_CONTENT_TYPES,
+    INGEST_MEDIA_JOB_NAME,
     MAX_IMAGE_DIMENSION,
-    PREPARE_MEDIA_JOB_NAME,
 )
 from app.features.media.schemas import (
     MediaJobQueuedResponse,
     MediaJobResponse,
     MediaUploadInspection,
-    PreparedMediaSource,
+    NormalizedMediaUpload,
+    StagedMediaUpload,
 )
 from app.features.rembg.enums import REMOVE_BACKGROUND_JOB_NAME
 from app.features.storage import JobStatus, MediaStorageService
@@ -40,6 +41,10 @@ class MediaService:
             filename=upload.filename,
             raise_http=True,
         )
+        staged_upload = self._build_staged_upload(
+            image_bytes=image_bytes,
+            inspection=inspection,
+        )
 
         job = self.storage.build_job(
             job_id=str(uuid4()),
@@ -48,18 +53,20 @@ class MediaService:
             source_size_bytes=inspection.size_bytes,
         )
 
-        await self.storage.upload_source(job, image_bytes)
-        await self.storage.save_job(job)
-
         try:
+            await self.storage.save_job(job)
+            await self.storage.save_staged_upload(
+                job.job_id,
+                staged_upload.model_dump(mode="python"),
+            )
             await self.queue_pool.enqueue_job(
-                PREPARE_MEDIA_JOB_NAME,
+                INGEST_MEDIA_JOB_NAME,
                 job.job_id,
                 _queue_name=QueueName.media,
             )
         except Exception as exc:
+            await self.storage.delete_staged_upload(job.job_id)
             await self.storage.delete_job(job.job_id)
-            await self.storage.delete_source(job)
             logger.exception("Failed to enqueue media job", job_id=job.job_id)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -68,7 +75,7 @@ class MediaService:
 
         return MediaJobQueuedResponse(job_id=job.job_id, status=job.status)
 
-    async def prepare_job(self, job_id: str) -> None:
+    async def ingest_job(self, job_id: str) -> None:
         job = await self.storage.get_job(job_id)
         if job is None:
             logger.warning("Media job missing in Redis", job_id=job_id)
@@ -77,41 +84,52 @@ class MediaService:
         if await self.storage.result_exists(job):
             job.mark_complete()
             await self.storage.save_job(job)
+            await self.storage.delete_staged_upload(job.job_id)
             if await self.storage.source_exists(job):
                 await self.storage.delete_source(job)
             return
 
-        if not await self.storage.source_exists(job):
-            await self.fail_job(job_id, "Source upload is missing")
+        if await self.storage.source_exists(job):
+            await self.storage.delete_staged_upload(job.job_id)
+            await self.queue_pool.enqueue_job(
+                REMOVE_BACKGROUND_JOB_NAME,
+                job.job_id,
+                _queue_name=QueueName.compute,
+            )
+            return
+
+        staged_upload_payload = await self.storage.get_staged_upload(job.job_id)
+        if staged_upload_payload is None:
+            await self.fail_job(job_id, "Queued upload expired before ingestion")
+            return
+
+        try:
+            staged_upload = StagedMediaUpload.model_validate(staged_upload_payload)
+        except ValidationError as exc:
+            await self.fail_job(job_id, self._format_validation_error(exc))
             return
 
         job.mark_preparing()
         await self.storage.save_job(job)
 
-        raw_image = await self.storage.download_source(job)
         try:
-            prepared = self._prepare_source(
-                image_bytes=raw_image,
-                content_type=job.source_content_type,
-                filename=job.source_filename,
+            normalized_upload = self._normalize_source_upload(
+                staged_upload=staged_upload,
             )
         except (ValidationError, ValueError) as exc:
             await self.fail_job(job_id, self._format_validation_error(exc))
             return
 
-        if (
-            prepared.payload != raw_image
-            or prepared.content_type != job.source_content_type
-        ):
-            await self.storage.upload_source(
-                job,
-                prepared.payload,
-                content_type=prepared.content_type,
-            )
+        await self.storage.upload_source(
+            job,
+            normalized_upload.payload,
+            content_type=normalized_upload.content_type,
+        )
 
-        job.source_content_type = prepared.content_type
-        job.source_size_bytes = prepared.size_bytes
+        job.source_content_type = normalized_upload.content_type
+        job.source_size_bytes = normalized_upload.size_bytes
         await self.storage.save_job(job)
+        await self.storage.delete_staged_upload(job.job_id)
 
         await self.queue_pool.enqueue_job(
             REMOVE_BACKGROUND_JOB_NAME,
@@ -152,8 +170,25 @@ class MediaService:
         if job is None:
             return
 
+        await self.storage.delete_staged_upload(job_id)
         job.mark_failed(error)
         await self.storage.save_job(job)
+
+    @staticmethod
+    def _build_staged_upload(
+        image_bytes: bytes,
+        inspection: MediaUploadInspection,
+    ) -> StagedMediaUpload:
+        return StagedMediaUpload.model_validate(
+            {
+                "filename": inspection.filename,
+                "payload": image_bytes,
+                "content_type": inspection.content_type,
+                "size_bytes": inspection.size_bytes,
+                "width": inspection.width,
+                "height": inspection.height,
+            }
+        )
 
     def _inspect_upload(
         self,
@@ -201,37 +236,27 @@ class MediaService:
                 raise self._http_exception_from_validation(exc) from exc
             raise
 
-    def _prepare_source(
+    def _normalize_source_upload(
         self,
-        image_bytes: bytes,
-        content_type: str | None,
-        filename: str | None,
-    ) -> PreparedMediaSource:
-        inspection = self._inspect_upload(
-            image_bytes=image_bytes,
-            content_type=content_type,
-            filename=filename,
-            raise_http=False,
-        )
-
-        if inspection.size_bytes <= environment.MEDIA_MAX_SOURCE_BYTES:
-            return PreparedMediaSource.model_validate(
+        staged_upload: StagedMediaUpload,
+    ) -> NormalizedMediaUpload:
+        if staged_upload.size_bytes <= environment.MEDIA_SOURCE_MAX_BYTES:
+            return NormalizedMediaUpload.model_validate(
                 {
-                    "payload": image_bytes,
-                    "content_type": inspection.content_type,
-                    "size_bytes": inspection.size_bytes,
-                    "width": inspection.width,
-                    "height": inspection.height,
+                    "payload": staged_upload.payload,
+                    "content_type": staged_upload.content_type,
+                    "size_bytes": staged_upload.size_bytes,
+                    "width": staged_upload.width,
+                    "height": staged_upload.height,
                 }
             )
 
-        with Image.open(BytesIO(image_bytes)) as image:
+        with Image.open(BytesIO(staged_upload.payload)) as image:
             prepared_image = ImageOps.exif_transpose(image).copy()
 
         return self._compress_to_source_limit(prepared_image)
 
-    def _compress_to_source_limit(self, image: Image.Image) -> PreparedMediaSource:
-        width, height = image.size
+    def _compress_to_source_limit(self, image: Image.Image) -> NormalizedMediaUpload:
         has_alpha = self._has_alpha(image)
         scales = (1.0, 0.92, 0.84, 0.76, 0.68, 0.6)
 
@@ -239,7 +264,7 @@ class MediaService:
             candidate = image if scale == 1.0 else self._resize_image(image, scale)
             for payload, content_type in self._encode_candidates(candidate, has_alpha):
                 try:
-                    return PreparedMediaSource.model_validate(
+                    return NormalizedMediaUpload.model_validate(
                         {
                             "payload": payload,
                             "content_type": content_type,

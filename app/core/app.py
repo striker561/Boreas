@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.core.config import environment, logger
@@ -113,6 +114,21 @@ async def request_validation_exception_handler(
         errors=format_validation_errors(exc.errors()),
         msg="Validation failed",
     )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    """Handle HTTP exceptions raised by FastAPI and Starlette."""
+    message = str(exc.detail) if exc.detail else "Request failed"
+    response = APIResponse.error(
+        msg=message,
+        status=exc.status_code,
+    )
+    if exc.headers:
+        response.headers.update(exc.headers)
+    return response
 
 
 @app.exception_handler(ValidationError)

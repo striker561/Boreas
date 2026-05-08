@@ -29,9 +29,10 @@ class MediaUploadInspection(BaseModel):
         return self
 
 
-class PreparedMediaSource(BaseModel):
+class StagedMediaUpload(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
+    filename: str | None = Field(default=None, max_length=255)
     payload: bytes
     content_type: str
     size_bytes: int = Field(gt=0)
@@ -41,11 +42,35 @@ class PreparedMediaSource(BaseModel):
     @model_validator(mode="after")
     def validate_constraints(self) -> "PreparedMediaSource":
         if self.content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
-            raise ValueError("Prepared media has an unsupported content type")
+            raise ValueError("Queued media has an unsupported content type")
         if len(self.payload) != self.size_bytes:
-            raise ValueError("Prepared media size metadata is invalid")
-        if self.size_bytes > environment.MEDIA_MAX_SOURCE_BYTES:
-            raise ValueError("Prepared media exceeds the 2 MB media limit")
+            raise ValueError("Queued media size metadata is invalid")
+        if self.size_bytes > environment.MAX_BODY_SIZE:
+            raise ValueError("Queued media exceeds the maximum request size")
+        if self.width > MAX_IMAGE_DIMENSION or self.height > MAX_IMAGE_DIMENSION:
+            raise ValueError(
+                f"Image dimensions must be at most {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION}px"
+            )
+        return self
+
+
+class NormalizedMediaUpload(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    payload: bytes
+    content_type: str
+    size_bytes: int = Field(gt=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_constraints(self) -> "NormalizedMediaUpload":
+        if self.content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
+            raise ValueError("Normalized media has an unsupported content type")
+        if len(self.payload) != self.size_bytes:
+            raise ValueError("Normalized media size metadata is invalid")
+        if self.size_bytes > environment.MEDIA_SOURCE_MAX_BYTES:
+            raise ValueError("Normalized media exceeds the 2 MB media limit")
         if self.width > MAX_IMAGE_DIMENSION or self.height > MAX_IMAGE_DIMENSION:
             raise ValueError(
                 f"Image dimensions must be at most {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION}px"

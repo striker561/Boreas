@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.core.storage.redis import RedisCache
 from app.features.storage.schemas import MediaJob
 from app.lib.storage import StorageBackend
@@ -15,11 +17,13 @@ class StorageDAL:
         self.ttl_seconds = ttl_seconds
 
     async def save_job(self, key: str, job: MediaJob) -> None:
-        await self.redis_cache.set(
+        saved = await self.redis_cache.set(
             key,
             job.model_dump(mode="json"),
             ttl=self.ttl_seconds,
         )
+        if not saved:
+            raise RuntimeError("Failed to persist media job in Redis")
 
     async def get_job(self, key: str) -> MediaJob | None:
         payload = await self.redis_cache.get(key)
@@ -28,6 +32,27 @@ class StorageDAL:
         return MediaJob.model_validate(payload)
 
     async def delete_job(self, key: str) -> None:
+        await self.redis_cache.delete(key)
+
+    async def save_staged_upload(
+        self,
+        key: str,
+        payload: dict[str, Any],
+        ttl_seconds: int,
+    ) -> None:
+        saved = await self.redis_cache.set(key, payload, ttl=ttl_seconds)
+        if not saved:
+            raise RuntimeError("Failed to persist staged upload in Redis")
+
+    async def get_staged_upload(self, key: str) -> dict[str, Any] | None:
+        payload = await self.redis_cache.get(key)
+        if payload is None:
+            return None
+        if not isinstance(payload, dict):
+            raise TypeError("Staged upload payload must be a dictionary")
+        return payload
+
+    async def delete_staged_upload(self, key: str) -> None:
         await self.redis_cache.delete(key)
 
     async def upload_bytes(

@@ -20,4 +20,7 @@ def build_media_service(
 async def get_media_service(
     queue_pool: Any = Depends(get_arq_pool),
 ) -> MediaService:
-    return build_media_service(queue_pool=queue_pool)
+    return build_media_service(
+        queue_pool=queue_pool,
+        storage=build_media_storage_service(),
+    )

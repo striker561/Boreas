@@ -14,8 +14,8 @@ from app.helpers import APIResponse
 router = APIRouter(prefix="/media", tags=["Media"])
 
 
-@router.post("/jobs/bg", dependencies=[Depends(rate_limit_upload)])
-async def create_media_bg_job(
+@router.post("/jobs", dependencies=[Depends(rate_limit_upload)])
+async def create_media_job(
     file: UploadFile = File(...),
     media: MediaService = Depends(get_media_service),
 ):

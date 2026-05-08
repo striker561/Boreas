@@ -4,9 +4,15 @@ from app.features.storage.schemas import MediaJob
 
 
 class MediaStorageService:
-    def __init__(self, dal: StorageDAL) -> None:
+    def __init__(
+        self,
+        dal: StorageDAL,
+        *,
+        staged_upload_ttl_seconds: int,
+    ) -> None:
         self.dal = dal
         self.ttl_seconds = dal.ttl_seconds
+        self.staged_upload_ttl_seconds = staged_upload_ttl_seconds
 
     def job_key(self, job_id: str) -> str:
         return f"jobs:media:{job_id}"
@@ -16,6 +22,9 @@ class MediaStorageService:
 
     def build_result_object_key(self, job_id: str) -> str:
         return f"jobs/media/result/{job_id}.png"
+
+    def staged_upload_key(self, job_id: str) -> str:
+        return f"jobs:media:staged-upload:{job_id}"
 
     def build_job(
         self,
@@ -42,6 +51,23 @@ class MediaStorageService:
 
     async def delete_job(self, job_id: str) -> None:
         await self.dal.delete_job(self.job_key(job_id))
+
+    async def save_staged_upload(
+        self,
+        job_id: str,
+        payload: dict[str, object],
+    ) -> None:
+        await self.dal.save_staged_upload(
+            self.staged_upload_key(job_id),
+            payload,
+            ttl_seconds=self.staged_upload_ttl_seconds,
+        )
+
+    async def get_staged_upload(self, job_id: str) -> dict[str, object] | None:
+        return await self.dal.get_staged_upload(self.staged_upload_key(job_id))
+
+    async def delete_staged_upload(self, job_id: str) -> None:
+        await self.dal.delete_staged_upload(self.staged_upload_key(job_id))
 
     async def upload_source(
         self,
