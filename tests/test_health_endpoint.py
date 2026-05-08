@@ -14,6 +14,16 @@ os.environ.setdefault("STORAGE_BUCKET_NAME", "bucket")
 
 
 class HealthEndpointTests(unittest.IsolatedAsyncioTestCase):
+    async def test_status_endpoint_is_lightweight(self) -> None:
+        from app.features.health.routes import status_check
+
+        response = await status_check()
+
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.body)
+        self.assertEqual(payload["msg"], "Application healthy")
+        self.assertEqual(payload["data"]["status"], "ok")
+
     async def test_health_endpoint_reports_queue_metrics(self) -> None:
         fake_redis = AsyncMock()
         fake_redis.ping.return_value = True

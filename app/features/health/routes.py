@@ -4,7 +4,6 @@ from fastapi.responses import JSONResponse
 from app.features.health.schemas import HealthReport, HealthStatusPayload
 from app.helpers import APIResponse
 from app.schemas import APIResponseSchema
-
 from app.features.health.service import HealthService, build_health_service
 
 router = APIRouter(tags=["Status"])
@@ -16,12 +15,10 @@ router = APIRouter(tags=["Status"])
     summary="Get application status",
     description="Lightweight reachability endpoint intended for simple uptime checks.",
 )
-async def status_check(
-    service: HealthService = Depends(build_health_service),
-) -> JSONResponse:
+async def status_check() -> JSONResponse:
     return APIResponse.success(
         msg="Application healthy",
-        data=await service.get_status(),
+        data=HealthStatusPayload(),
     )
 
 

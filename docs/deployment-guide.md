@@ -69,7 +69,11 @@ Expose:
 
 Health check:
 
-- path: `/health`
+- path: `/`
+
+Use `/` for container liveness.
+
+Do not use `/health` as the container liveness probe. `/health` is the operational report and includes dependency checks. Boreas already warms Redis and ARQ during startup, so the Docker healthcheck should only verify that the API process is up and answering requests.
 
 Persist this directory if Coolify offers a volume:
 

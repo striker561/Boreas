@@ -14,6 +14,7 @@ Deployment and model-tuning guidance lives in [docs/deployment-guide.md](docs/de
 - `POST /v1/media/jobs` accepts an image and returns a job id immediately.
 - `GET /v1/media/jobs/{job_id}` returns job state and a result URL when ready.
 - `GET /v1/media/jobs/{job_id}/stream` streams job updates through SSE.
+- `/` exposes a lightweight reachability endpoint for liveness checks.
 - `/health` exposes public runtime health, queue depth, and staging metrics.
 
 ## Runtime Shape
