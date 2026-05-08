@@ -22,10 +22,8 @@ class Environment(BaseSettings):
     API_RATE_LIMIT: str = "5/minute"
     UPLOAD_RATE_LIMIT: str = "5/minute"
     LOG_LEVEL: str = "INFO"
-    LOGFIRE_TOKEN: str | None = None
-    LOGFIRE_SEND_TO_LOGFIRE: bool = False
-    LOGFIRE_SERVICE_NAME: str = "boreas"
-    LOGFIRE_ENVIRONMENT: str | None = None
+    AXIOM_TOKEN: str | None = None
+    AXIOM_DATASET: str = "boreas-logs"
     STARTUP_DEPENDENCY_MAX_ATTEMPTS: int = Field(default=10, ge=1, le=60)
     STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS: float = Field(
         default=2.0,

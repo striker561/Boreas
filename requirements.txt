@@ -19,7 +19,7 @@ arq==0.26.3
 aioboto3==15.5.0
 
 # --- Observability ---
-logfire==4.20.0
+axiom-py>=2.1.0
 
 # --- Image Processing ---
 rembg[cpu]==2.0.67
