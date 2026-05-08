@@ -3,6 +3,8 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_INTERNAL_TRUSTED_HOSTS = ("localhost", "127.0.0.1", "::1")
+
 
 class Environment(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -74,10 +76,19 @@ class Environment(BaseSettings):
     @property
     def trusted_hosts_list(self) -> list[str]:
         """Parse trusted hosts from comma-separated string."""
-        return [host.strip() for host in self.TRUSTED_HOSTS.split(",") if host.strip()]
+        configured_hosts = [
+            host.strip() for host in self.TRUSTED_HOSTS.split(",") if host.strip()
+        ]
+        resolved_hosts: list[str] = []
+
+        for host in [*configured_hosts, *_INTERNAL_TRUSTED_HOSTS]:
+            if host not in resolved_hosts:
+                resolved_hosts.append(host)
+
+        return resolved_hosts
 
 
 @lru_cache
 def get_environment() -> Environment:
     """Return the cached settings object."""
-    return Environment()
+    return Environment()  # type: ignore[call-arg]

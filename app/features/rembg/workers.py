@@ -8,9 +8,17 @@ BACKGROUND_REMOVAL_PROCESSOR_CONTEXT_KEY = "background_removal_processor"
 
 async def warm_background_removal_worker(ctx: dict[str, Any]) -> None:
     processor = build_background_removal_processor()
-    processor.warm_worker_dependencies()
+    prewarmed = True
+    try:
+        processor.warm_worker_dependencies()
+    except Exception as exc:
+        prewarmed = False
+        logger.warning(
+            "Background removal worker warmup failed; model will load on first job",
+            error=type(exc).__name__,
+        )
     ctx[BACKGROUND_REMOVAL_PROCESSOR_CONTEXT_KEY] = processor
-    logger.info("Background removal worker ready")
+    logger.info("Background removal worker ready", prewarmed=prewarmed)
 
 
 async def remove_background_job(ctx: dict[str, Any], job_id: str) -> None:

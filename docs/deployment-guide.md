@@ -41,6 +41,12 @@ Boreas assumes:
 - the bucket is private
 - final result objects are short-lived and expire through a lifecycle rule
 
+Important container networking rule:
+
+- `localhost` inside the Boreas container means the Boreas container itself, not your Redis service
+- in Coolify, set `REDIS_URL` to the internal hostname or service name of the Redis service
+- use `localhost` only for non-container local development
+
 Object paths used by Boreas:
 
 - prepared source objects: `jobs/media/source/<job_id>`
@@ -54,6 +60,8 @@ Recommended lifecycle policy:
 ## Quick Start For Coolify
 
 Use the current Dockerfile and deploy Boreas as one application service.
+
+Set `REDIS_URL` to the Redis service host provided by Coolify, not `localhost`.
 
 Expose:
 

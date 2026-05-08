@@ -1,5 +1,6 @@
 import os
 import unittest
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -20,6 +21,42 @@ class RembgServiceTests(unittest.TestCase):
         rembg_service_module.get_rembg_session.cache_clear()
         rembg_service_module.get_rembg_remove_options.cache_clear()
 
+    @staticmethod
+    @contextmanager
+    def _no_op_model_lock():
+        yield
+
+    def test_get_rembg_session_uses_model_lock(self) -> None:
+        environment = SimpleNamespace(REMBG_MODEL="isnet-general-use")
+        lock_events: list[str] = []
+
+        @contextmanager
+        def fake_model_lock():
+            lock_events.append("enter")
+            try:
+                yield
+            finally:
+                lock_events.append("exit")
+
+        with patch.object(
+            rembg_service_module,
+            "get_environment",
+            return_value=environment,
+        ), patch.object(
+            rembg_service_module,
+            "_rembg_model_lock",
+            fake_model_lock,
+        ), patch.object(
+            rembg_service_module,
+            "new_session",
+            return_value="session",
+        ) as new_session_mock:
+            session = rembg_service_module.get_rembg_session()
+
+        self.assertEqual(session, "session")
+        self.assertEqual(lock_events, ["enter", "exit"])
+        new_session_mock.assert_called_once_with("isnet-general-use")
+
     def test_remove_background_uses_quality_and_hardening_options(self) -> None:
         environment = SimpleNamespace(
             REMBG_MODEL="isnet-general-use",
@@ -39,6 +76,10 @@ class RembgServiceTests(unittest.TestCase):
             "new_session",
             return_value="session",
         ) as new_session_mock, patch.object(
+            rembg_service_module,
+            "_rembg_model_lock",
+            self._no_op_model_lock,
+        ), patch.object(
             rembg_service_module,
             "remove",
             return_value=b"cutout-bytes",
@@ -76,6 +117,10 @@ class RembgServiceTests(unittest.TestCase):
             rembg_service_module,
             "new_session",
             return_value="session",
+        ), patch.object(
+            rembg_service_module,
+            "_rembg_model_lock",
+            self._no_op_model_lock,
         ), patch.object(
             rembg_service_module,
             "remove",
