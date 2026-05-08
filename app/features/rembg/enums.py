@@ -1,1 +1,1 @@
-REMBG_JOB_NAME = "run_rembg_job"
+REMOVE_BACKGROUND_JOB_NAME = "remove_background_job"

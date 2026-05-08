@@ -9,7 +9,8 @@ if [[ -f .env ]]; then
 	set +a
 fi
 
-rembg_workers="${REMBG_WORKERS:-2}"
+media_workers="${MEDIA_WORKERS:-1}"
+rembg_workers="${REMBG_WORKERS:-1}"
 declare -a worker_pids=()
 
 if [[ -n "${VIRTUAL_ENV:-}" ]]; then
@@ -31,8 +32,13 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
+for _ in $(seq 1 "$media_workers"); do
+	"$arq_bin" app.core.queue.registry.MediaWorkerSettings &
+	worker_pids+=("$!")
+done
+
 for _ in $(seq 1 "$rembg_workers"); do
-	"$arq_bin" app.core.queue.registry.RembgWorkerSettings &
+	"$arq_bin" app.core.queue.registry.BackgroundRemovalWorkerSettings &
 	worker_pids+=("$!")
 done
 

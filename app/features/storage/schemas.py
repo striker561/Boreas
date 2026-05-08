@@ -9,12 +9,13 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class RembgJob(BaseModel):
+class MediaJob(BaseModel):
     job_id: str
     status: JobStatus
-    raw_key: str
+    source_key: str
     result_key: str
     source_content_type: str
+    source_size_bytes: int | None = None
     result_content_type: str = RESULT_CONTENT_TYPE
     source_filename: str | None = None
     error: str | None = None
@@ -24,6 +25,11 @@ class RembgJob(BaseModel):
 
     def touch(self) -> None:
         self.updated_at = utcnow()
+
+    def mark_preparing(self) -> None:
+        self.status = JobStatus.preparing
+        self.error = None
+        self.touch()
 
     def mark_processing(self) -> None:
         self.status = JobStatus.processing

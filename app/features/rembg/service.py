@@ -1,10 +1,10 @@
 from app.core.config import logger
-from app.features.storage import RembgStorageService
+from app.features.storage import MediaStorageService
 from app.lib.rembg import remove_background_image, warm_rembg_session
 
 
-class RembgProcessor:
-    def __init__(self, storage: RembgStorageService) -> None:
+class BackgroundRemovalProcessor:
+    def __init__(self, storage: MediaStorageService) -> None:
         self.storage = storage
 
     def warm_worker_dependencies(self) -> None:

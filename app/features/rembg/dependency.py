@@ -1,18 +1,18 @@
 from fastapi import Depends
 
-from app.features.rembg.service import RembgProcessor
+from app.features.rembg.service import BackgroundRemovalProcessor
 from app.features.storage import (
-    RembgStorageService,
-    build_rembg_storage_service,
-    get_rembg_storage_service,
+    MediaStorageService,
+    build_media_storage_service,
+    get_media_storage_service,
 )
 
 
-def build_rembg_processor() -> RembgProcessor:
-    return RembgProcessor(storage=build_rembg_storage_service())
+def build_background_removal_processor() -> BackgroundRemovalProcessor:
+    return BackgroundRemovalProcessor(storage=build_media_storage_service())
 
 
-async def get_rembg_processor(
-    storage: RembgStorageService = Depends(get_rembg_storage_service),
-) -> RembgProcessor:
-    return RembgProcessor(storage=storage)
+async def get_background_removal_processor(
+    storage: MediaStorageService = Depends(get_media_storage_service),
+) -> BackgroundRemovalProcessor:
+    return BackgroundRemovalProcessor(storage=storage)

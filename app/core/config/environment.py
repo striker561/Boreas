@@ -17,7 +17,9 @@ class Environment(BaseSettings):
     MAX_BODY_SIZE: int = 10 * 1024 * 1024
     GZIP_MIN_SIZE: int = 1024
 
-    REMBG_WORKERS: int = 2
+    MEDIA_MAX_SOURCE_BYTES: int = 2 * 1024 * 1024
+    MEDIA_WORKERS: int = 1
+    REMBG_WORKERS: int = 1
 
     STORAGE_ENDPOINT_URL: str = ""
     STORAGE_ACCESS_KEY_ID: str

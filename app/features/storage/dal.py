@@ -1,5 +1,5 @@
 from app.core.storage.redis import RedisCache
-from app.features.storage.schemas import RembgJob
+from app.features.storage.schemas import MediaJob
 from app.lib.storage import StorageBackend
 
 
@@ -14,18 +14,18 @@ class StorageDAL:
         self.object_storage = object_storage
         self.ttl_seconds = ttl_seconds
 
-    async def save_job(self, key: str, job: RembgJob) -> None:
+    async def save_job(self, key: str, job: MediaJob) -> None:
         await self.redis_cache.set(
             key,
             job.model_dump(mode="json"),
             ttl=self.ttl_seconds,
         )
 
-    async def get_job(self, key: str) -> RembgJob | None:
+    async def get_job(self, key: str) -> MediaJob | None:
         payload = await self.redis_cache.get(key)
         if payload is None:
             return None
-        return RembgJob.model_validate(payload)
+        return MediaJob.model_validate(payload)
 
     async def delete_job(self, key: str) -> None:
         await self.redis_cache.delete(key)
