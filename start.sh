@@ -9,6 +9,10 @@ if [[ -f .env ]]; then
 	set +a
 fi
 
+media_workers="${MEDIA_WORKERS:-1}"
+background_removal_workers="${BACKGROUND_REMOVAL_WORKERS:-1}"
+declare -a worker_pids=()
+
 export OMP_NUM_THREADS="${REMBG_OMP_NUM_THREADS:-2}"
 export OMP_WAIT_POLICY="${OMP_WAIT_POLICY:-PASSIVE}"
 export MALLOC_ARENA_MAX="${MALLOC_ARENA_MAX:-2}"
@@ -26,16 +30,33 @@ else
 	uvicorn_bin="uvicorn"
 fi
 
+# ponytail: respawn on exit only; hung workers rely on REMBG_INFERENCE_TIMEOUT_SECONDS + container restart
+_run_worker() {
+	local settings_class=$1
+	while true; do
+		"$arq_bin" "$settings_class" || true
+		sleep 2
+	done
+}
+
 cleanup() {
-	kill "$watchdog_pid" 2>/dev/null || true
+	for pid in "${worker_pids[@]:-}"; do
+		kill "$pid" 2>/dev/null || true
+	done
 	wait || true
 }
 
 trap cleanup EXIT INT TERM
 
-# Start the watchdog (spawns and supervises arq workers)
-python -m app.core.watchdog "$arq_bin" &
-watchdog_pid=$!
+for _ in $(seq 1 "$media_workers"); do
+	_run_worker app.core.queue.registry.MediaWorkerSettings &
+	worker_pids+=("$!")
+done
+
+for _ in $(seq 1 "$background_removal_workers"); do
+	_run_worker app.core.queue.registry.BackgroundRemovalWorkerSettings &
+	worker_pids+=("$!")
+done
 
 # Keep uvicorn in the foreground so worker exits do not immediately terminate
 # container liveness; workers are cleaned up when the API process exits.

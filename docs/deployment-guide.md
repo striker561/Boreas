@@ -154,7 +154,7 @@ Why this is the default profile:
 - `REMBG_OMP_NUM_THREADS`
   Number of CPU threads ONNX Runtime can use inside each compute worker.
 - `REMBG_INFERENCE_TIMEOUT_SECONDS`
-  Max seconds for one rembg inference call (30–280, default 120). With one compute worker, a hung job blocks the whole queue until this timeout or the watchdog respawns the process.
+  Max seconds for one rembg inference call (30–280, default 120). With one compute worker, a hung job blocks the queue until this timeout or the worker process restarts.
 
 Important rule:
 
@@ -217,10 +217,9 @@ Implications:
 
 Worker supervision:
 
-- `start.sh` launches a watchdog process that spawns ARQ workers and restarts them when heartbeats expire or the process dies
-- workers write Redis heartbeats on startup, at job start, and at job completion
+- `start.sh` respawns each ARQ worker when its process exits (crash/OOM)
 - rembg inference timeout is configurable via `REMBG_INFERENCE_TIMEOUT_SECONDS` (default 120s); hung ONNX calls trigger executor reset and ARQ retry
-- `/health` reports `worker_heartbeats`, `stale_workers`, and queue depths — use it for operational monitoring, not container liveness
+- `/health` `queue_depths` and `staged_uploads` show pipeline backlog — use for ops, not container liveness
 
 ## Stuck Jobs Runbook
 
@@ -231,22 +230,20 @@ What to check:
 1. `GET /health`
    - `queue_depths.boreas:media` growing → media ingest worker is down or hung
    - `queue_depths.boreas:compute` growing → compute (rembg) worker is down or hung
-   - `stale_workers` non-empty → worker heartbeats expired or expected workers are missing
    - `staged_uploads` high with a growing media queue → ingest is falling behind; staged uploads expire after 15 minutes
 2. Application logs (stdout or Axiom)
-   - `Background removal timed out, resetting executor` → ONNX hung; watchdog should respawn the worker after heartbeat expiry
+   - `Background removal timed out, resetting executor` → ONNX hung; ARQ will retry (up to 3 tries)
    - `Media ingest job failed` or `Background removal job failed` → check the linked `job_id`
 
 Remediation:
 
-- After deploying the watchdog: stale workers are respawned automatically within about one minute
-- Before watchdog or if respawn fails: restart the Boreas container/process to relaunch workers
+- Restart the Boreas container if queue depths stay high after several minutes
 - Do not use `/health` as a Docker liveness probe — restarts during rembg warmup cause memory spikes
 
 Why this happens:
 
 - ARQ workers are separate processes from the API. The API can stay healthy while workers die (OOM) or hang (stuck ONNX inference)
-- With `max_jobs=1`, one hung compute job blocks all background removal until the worker is restarted
+- With `max_jobs=1`, one hung compute job blocks all background removal until timeout, retry, or process restart
 
 ## Model Selection Guide
 

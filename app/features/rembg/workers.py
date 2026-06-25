@@ -1,7 +1,6 @@
 from typing import Any
 
 from app.core.config import logger
-from app.core.worker_heartbeats import QUEUE_COMPUTE, write_worker_heartbeat
 from app.features.rembg.dependency import build_background_removal_processor
 from app.lib.rembg.service import (
     RembgTimeoutError,
@@ -23,7 +22,6 @@ async def warm_background_removal_worker(ctx: dict[str, Any]) -> None:
             error=type(exc).__name__,
         )
     ctx[BACKGROUND_REMOVAL_PROCESSOR_CONTEXT_KEY] = processor
-    await write_worker_heartbeat(ctx, queue=QUEUE_COMPUTE)
     logger.info("Background removal worker ready", prewarmed=prewarmed)
 
 
@@ -32,7 +30,6 @@ async def remove_background_job(ctx: dict[str, Any], job_id: str) -> None:
     if processor is None:
         processor = build_background_removal_processor()
         ctx[BACKGROUND_REMOVAL_PROCESSOR_CONTEXT_KEY] = processor
-    await write_worker_heartbeat(ctx, queue=QUEUE_COMPUTE, job_id=job_id)
     try:
         await processor.process_job(job_id)
     except RembgTimeoutError:
@@ -47,5 +44,3 @@ async def remove_background_job(ctx: dict[str, Any], job_id: str) -> None:
         if int(ctx.get("job_try", 1)) >= 3:
             await processor.fail_job(job_id, "Background removal failed")
         raise
-    finally:
-        await write_worker_heartbeat(ctx, queue=QUEUE_COMPUTE, job_id=job_id)
