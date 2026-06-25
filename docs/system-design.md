@@ -167,7 +167,7 @@ Boreas logs at the places that actually matter operationally:
 - job failure state transitions
 - degraded health checks
 
-Logfire is configured through environment variables so operators can keep local logging only in development or forward telemetry when a token is present.
+Axiom is configured through environment variables so operators can keep local logging only in development or forward telemetry when a token is present.
 
 The point of the current logging setup is insight, not verbosity. We want enough signal to answer “what failed, where, and for which job?” without drowning the service in noise.
 

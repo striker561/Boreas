@@ -63,6 +63,15 @@ class Environment(BaseSettings):
         le=64,
     )
     REMBG_OMP_NUM_THREADS: int = Field(default=2, ge=1, le=16)
+    REMBG_INFERENCE_TIMEOUT_SECONDS: int = Field(
+        default=120,
+        ge=30,
+        le=280,
+        description=(
+            "Max seconds for one rembg/ONNX inference call. "
+            "Must stay below the compute worker ARQ job timeout (300s)."
+        ),
+    )
 
     model_config = SettingsConfigDict(
         case_sensitive=True,

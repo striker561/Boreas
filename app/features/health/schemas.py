@@ -3,6 +3,15 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class WorkerHeartbeat(BaseModel):
+    pid: int = Field(description="Worker process ID.")
+    queue: str = Field(description="Queue this worker consumes.")
+    last_job_id: str = Field(description="ID of the last job processed.")
+    staleness_seconds: float = Field(
+        description="Seconds since the worker last reported a heartbeat.",
+    )
+
+
 class HealthStatusPayload(BaseModel):
     status: Literal["ok"] = Field(
         default="ok",
@@ -58,3 +67,11 @@ class HealthReport(BaseModel):
     )
     workers: HealthWorkers
     limits: HealthLimits
+    worker_heartbeats: dict[str, WorkerHeartbeat] = Field(
+        description="Per-worker heartbeat status, keyed by worker PID.",
+        default_factory=dict,
+    )
+    stale_workers: list[str] = Field(
+        description="Worker PIDs whose heartbeat has expired.",
+        default_factory=list,
+    )

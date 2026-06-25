@@ -112,10 +112,10 @@ REMBG_OMP_NUM_THREADS=2
 LOG_LEVEL=INFO
 ```
 
-Logfire note:
+Axiom note:
 
-- `LOGFIRE_ENVIRONMENT` is optional
-- leave it unset unless you explicitly want environment-based filtering in the Logfire UI
+- `AXIOM_TOKEN` is optional — leave it unset for stdout-only logging
+- `AXIOM_DATASET` defaults to `boreas-logs`
 
 Logging note:
 
@@ -153,6 +153,8 @@ Why this is the default profile:
   Number of compute worker processes.
 - `REMBG_OMP_NUM_THREADS`
   Number of CPU threads ONNX Runtime can use inside each compute worker.
+- `REMBG_INFERENCE_TIMEOUT_SECONDS`
+  Max seconds for one rembg inference call (30–280, default 120). With one compute worker, a hung job blocks the whole queue until this timeout or the watchdog respawns the process.
 
 Important rule:
 
@@ -195,10 +197,8 @@ If that number is too high for the machine, latency becomes spiky, uploads back 
 ### Observability
 
 - `LOG_LEVEL`
-- `LOGFIRE_SEND_TO_LOGFIRE`
-- `LOGFIRE_TOKEN`
-- `LOGFIRE_SERVICE_NAME`
-- `LOGFIRE_ENVIRONMENT`
+- `AXIOM_TOKEN`
+- `AXIOM_DATASET`
 
 ## Worker And Timeout Model
 
@@ -214,6 +214,39 @@ Implications:
 - Boreas is tuned for predictable single-job execution per worker process, not high parallelism inside one process
 - larger or heavier rembg models increase the chance of compute jobs approaching the timeout window
 - if you raise worker counts, you are multiplying model memory use and CPU pressure
+
+Worker supervision:
+
+- `start.sh` launches a watchdog process that spawns ARQ workers and restarts them when heartbeats expire or the process dies
+- workers write Redis heartbeats on startup, at job start, and at job completion
+- rembg inference timeout is configurable via `REMBG_INFERENCE_TIMEOUT_SECONDS` (default 120s); hung ONNX calls trigger executor reset and ARQ retry
+- `/health` reports `worker_heartbeats`, `stale_workers`, and queue depths — use it for operational monitoring, not container liveness
+
+## Stuck Jobs Runbook
+
+Symptom: uploads return a `job_id`, but the job stays in `queued`, `preparing`, or `processing` and never reaches `complete`.
+
+What to check:
+
+1. `GET /health`
+   - `queue_depths.boreas:media` growing → media ingest worker is down or hung
+   - `queue_depths.boreas:compute` growing → compute (rembg) worker is down or hung
+   - `stale_workers` non-empty → worker heartbeats expired or expected workers are missing
+   - `staged_uploads` high with a growing media queue → ingest is falling behind; staged uploads expire after 15 minutes
+2. Application logs (stdout or Axiom)
+   - `Background removal timed out, resetting executor` → ONNX hung; watchdog should respawn the worker after heartbeat expiry
+   - `Media ingest job failed` or `Background removal job failed` → check the linked `job_id`
+
+Remediation:
+
+- After deploying the watchdog: stale workers are respawned automatically within about one minute
+- Before watchdog or if respawn fails: restart the Boreas container/process to relaunch workers
+- Do not use `/health` as a Docker liveness probe — restarts during rembg warmup cause memory spikes
+
+Why this happens:
+
+- ARQ workers are separate processes from the API. The API can stay healthy while workers die (OOM) or hang (stuck ONNX inference)
+- With `max_jobs=1`, one hung compute job blocks all background removal until the worker is restarted
 
 ## Model Selection Guide
 

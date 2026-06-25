@@ -8,7 +8,7 @@ Adding a new domain:
     1. Add a QueueName member in names.py
     2. Create the job function(s) in the owning feature or lib module
     3. Add a WorkerSettings class below bound to that queue
-    4. Add an arq launch line in the startup script
+    4. Add worker settings to the watchdog worker list in `app/core/watchdog.py`
 """
 
 from typing import ClassVar

@@ -314,7 +314,7 @@ class MediaService:
             candidate = image if scale == 1.0 else self._resize_image(image, scale)
             for payload, content_type in self._encode_candidates(candidate, has_alpha):
                 try:
-                    return NormalizedMediaUpload.model_validate(
+                    result = NormalizedMediaUpload.model_validate(
                         {
                             "payload": payload,
                             "content_type": content_type,
@@ -323,8 +323,11 @@ class MediaService:
                             "height": candidate.height,
                         }
                     )
+                    return result
                 except ValidationError:
                     continue
+            if scale != 1.0:
+                del candidate
 
         raise ValueError("Unable to fit image within the 2 MB media limit")
 

@@ -15,6 +15,14 @@ from app.core.config.environment import get_environment
 MODEL_LOCK_FILENAME = ".boreas-rembg-model.lock"
 
 
+class RembgTimeoutError(asyncio.TimeoutError):
+    """Raised when a background-removal inference call exceeds the time budget."""
+
+
+def _inference_timeout_seconds() -> int:
+    return get_environment().REMBG_INFERENCE_TIMEOUT_SECONDS
+
+
 def _get_u2net_home() -> str:
     return os.environ.get("U2NET_HOME", os.path.expanduser("~/.u2net"))
 
@@ -68,6 +76,14 @@ def get_rembg_executor() -> ThreadPoolExecutor:
     return ThreadPoolExecutor(max_workers=1, thread_name_prefix="rembg")
 
 
+def shutdown_rembg_executor() -> None:
+    """Shut down the cached executor and reset the cache so a new one is created."""
+    executor = get_rembg_executor()
+    executor.shutdown(wait=False)
+    get_rembg_executor.cache_clear()
+    logger.info("rembg executor shut down and cache cleared")
+
+
 def warm_rembg_session() -> None:
     get_rembg_session()
     get_rembg_remove_options()
@@ -87,7 +103,20 @@ def _remove_background(image_bytes: bytes) -> bytes:
 
 async def remove_background_image(image_bytes: bytes) -> bytes:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        get_rembg_executor(),
-        partial(_remove_background, image_bytes),
-    )
+    timeout_seconds = _inference_timeout_seconds()
+    try:
+        return await asyncio.wait_for(
+            loop.run_in_executor(
+                get_rembg_executor(),
+                partial(_remove_background, image_bytes),
+            ),
+            timeout=timeout_seconds,
+        )
+    except asyncio.TimeoutError:
+        logger.error(
+            "rembg inference timed out",
+            timeout_seconds=timeout_seconds,
+        )
+        raise RembgTimeoutError(
+            f"rembg inference exceeded {timeout_seconds}s timeout"
+        ) from None

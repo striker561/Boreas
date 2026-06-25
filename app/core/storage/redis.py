@@ -70,16 +70,12 @@ class RedisCache:
             return False
 
     async def _get_client(self) -> Redis:
-        """Get Redis client, reconnect if needed."""
-        if not self.redis:
-            await self.connect()
+        """Get Redis client, reconnect if needed.
 
+        Relies on redis-py ConnectionPool for transparent reconnection —
+        no redundant PING on every operation.
+        """
         if not self.redis:
-            raise ConnectionError("Redis not available")
-
-        try:
-            await self.redis.ping()
-        except Exception:
             await self.connect()
 
         if not self.redis:
@@ -182,6 +178,25 @@ class RedisCache:
                 error=type(e).__name__,
             )
             return 0
+
+    async def scan_values(self, pattern: str) -> dict[str, Any]:
+        """Scan for keys matching *pattern* and return a dict of key -> decoded JSON value."""
+        result: dict[str, Any] = {}
+        try:
+            client = await self._get_client()
+            async for key in client.scan_iter(match=pattern, count=100):
+                raw = await client.get(key)
+                if raw is not None:
+                    if isinstance(raw, bytes):
+                        raw = raw.decode("utf-8")
+                    result[key] = json.loads(raw)
+        except Exception as e:
+            logger.error(
+                "Redis scan values failed",
+                pattern=pattern,
+                error=type(e).__name__,
+            )
+        return result
 
     async def incr(self, key: str, expire_if_new: int | None = None) -> int:
         """
