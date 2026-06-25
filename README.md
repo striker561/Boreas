@@ -83,14 +83,10 @@ Important settings:
 - `STARTUP_DEPENDENCY_MAX_ATTEMPTS`
 - `STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS`
 - `LOG_LEVEL`
-- `LOGFIRE_SEND_TO_LOGFIRE`
-- `LOGFIRE_TOKEN`
-- `LOGFIRE_SERVICE_NAME`
-- `LOGFIRE_ENVIRONMENT`
+- `AXIOM_TOKEN`
+- `AXIOM_DATASET`
 
-If `LOGFIRE_SEND_TO_LOGFIRE=false`, Boreas keeps logs local even when Logfire is installed.
-
-`LOGFIRE_ENVIRONMENT` is optional. Set it only if you want Logfire to split or filter telemetry by deployment environment. Leaving it empty keeps all Boreas telemetry under the same service without an extra environment dimension.
+If `AXIOM_TOKEN` is unset, Boreas logs to stdout only. When set, structured logs are also forwarded to the configured Axiom dataset (default `boreas-logs`).
 
 `STARTUP_DEPENDENCY_MAX_ATTEMPTS` and `STARTUP_DEPENDENCY_RETRY_DELAY_SECONDS` control how long Boreas retries Redis and ARQ warmup before failing startup.
 
