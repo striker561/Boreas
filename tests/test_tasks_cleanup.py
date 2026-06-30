@@ -39,6 +39,7 @@ class TasksCleanupTests(unittest.IsolatedAsyncioTestCase):
         storage.get_job = AsyncMock(return_value=None)
         storage.delete_job = AsyncMock()
         storage.delete_staged_upload = AsyncMock()
+        storage.delete_job_objects = AsyncMock(return_value=2)
         storage.object_storage = MagicMock()
         storage.object_storage.delete_objects_older_than = AsyncMock(return_value=0)
         redis_cache = AsyncMock()
@@ -57,8 +58,10 @@ class TasksCleanupTests(unittest.IsolatedAsyncioTestCase):
         summary = await service.run_hourly_cleanup()
 
         storage.delete_staged_upload.assert_awaited_once_with("done-job")
+        storage.delete_job_objects.assert_awaited_once()
         storage.delete_job.assert_awaited_once_with("done-job")
         self.assertEqual(summary.redis_jobs_deleted, 1)
+        self.assertEqual(summary.s3_objects_deleted, 2)
 
     async def test_skips_staged_upload_keys(self) -> None:
         service, storage, redis_cache = self._build_service()
