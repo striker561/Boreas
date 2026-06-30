@@ -12,9 +12,11 @@ from app.features.health.schemas import (
     HealthDependencyStatus,
     HealthLimits,
     HealthReport,
+    HealthSseStreams,
     HealthStatusPayload,
     HealthWorkers,
 )
+from app.features.media.streams.hub import get_job_notify_hub
 
 
 class HealthService:
@@ -43,6 +45,7 @@ class HealthService:
             ),
         }
         staged_uploads = await self.storage.staged_upload_count()
+        sse_streams = HealthSseStreams.model_validate(get_job_notify_hub().stats())
 
         status = "ok" if redis_ok and arq_ok else "degraded"
         if status != "ok":
@@ -61,6 +64,7 @@ class HealthService:
                 arq=HealthDependencyStatus(reachable=arq_ok),
                 queue_depths=queue_depths,
                 staged_uploads=staged_uploads,
+                sse_streams=sse_streams,
                 workers=HealthWorkers(
                     media=environment.MEDIA_WORKERS,
                     background_removal=environment.BACKGROUND_REMOVAL_WORKERS,

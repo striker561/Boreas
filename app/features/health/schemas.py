@@ -24,6 +24,21 @@ class HealthWorkers(BaseModel):
     )
 
 
+class HealthSseStreams(BaseModel):
+    active_streams: int = Field(
+        description="Open SSE job streams on this API process.",
+        examples=[0],
+    )
+    tracked_jobs: int = Field(
+        description="Distinct job ids with at least one SSE waiter on this process.",
+        examples=[0],
+    )
+    listener_running: bool = Field(
+        description="Whether the Redis pub/sub listener task is alive on this process.",
+        examples=[True],
+    )
+
+
 class HealthLimits(BaseModel):
     api_rate_limit: str = Field(
         description="Configured moving-window rate limit for read-style API requests."
@@ -55,6 +70,9 @@ class HealthReport(BaseModel):
     staged_uploads: int = Field(
         description="Number of staged uploads currently waiting in Redis.",
         examples=[0],
+    )
+    sse_streams: HealthSseStreams = Field(
+        description="In-process media job SSE hub metrics (per API worker, not cluster-wide).",
     )
     workers: HealthWorkers
     limits: HealthLimits

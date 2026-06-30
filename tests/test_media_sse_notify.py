@@ -12,6 +12,7 @@ os.environ.setdefault("STORAGE_SECRET_ACCESS_KEY", "secret")
 os.environ.setdefault("STORAGE_BUCKET_NAME", "bucket")
 
 from app.core.storage.media import JobStatus, MediaJob, MediaStorageService
+from app.features.media.streams.hub import JobNotifyHub, job_id_from_notify_channel
 
 
 class SaveJobNotifyTests(unittest.IsolatedAsyncioTestCase):
@@ -37,6 +38,37 @@ class SaveJobNotifyTests(unittest.IsolatedAsyncioTestCase):
         await storage.save_job(job)
 
         redis_cache.publish.assert_awaited_once_with("jobs:media:job-1:notify")
+
+
+class JobNotifyHubTests(unittest.IsolatedAsyncioTestCase):
+    def test_job_id_from_notify_channel(self) -> None:
+        self.assertEqual(
+            job_id_from_notify_channel("jobs:media:abc-123:notify"),
+            "abc-123",
+        )
+        self.assertIsNone(job_id_from_notify_channel("jobs:media:bad"))
+
+    async def test_wake_only_matching_job_waiters(self) -> None:
+        hub = JobNotifyHub()
+        job_a = hub.subscribe("job-a")
+        job_b = hub.subscribe("job-b")
+
+        hub.wake("job-a")
+
+        self.assertTrue(job_a.is_set())
+        self.assertFalse(job_b.is_set())
+
+    def test_stats_reports_stream_counts(self) -> None:
+        hub = JobNotifyHub()
+        hub.subscribe("job-a")
+        hub.subscribe("job-a")
+        hub.subscribe("job-b")
+
+        stats = hub.stats()
+
+        self.assertEqual(stats["active_streams"], 3)
+        self.assertEqual(stats["tracked_jobs"], 2)
+        self.assertFalse(stats["listener_running"])
 
 
 if __name__ == "__main__":

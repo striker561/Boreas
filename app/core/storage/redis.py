@@ -1,5 +1,4 @@
 import json
-from collections.abc import AsyncIterator
 from typing import Any
 
 from redis.asyncio import ConnectionPool, Redis
@@ -217,16 +216,3 @@ class RedisCache:
         """Publish to a Redis pub/sub channel. Returns subscriber count."""
         client = await self._get_client()
         return int(await client.publish(channel, message))
-
-    async def listen(self, channel: str) -> AsyncIterator[dict[str, Any]]:
-        """Yield pub/sub messages on *channel*. One dedicated connection per stream."""
-        client = await self._get_client()
-        pubsub = client.pubsub()
-        await pubsub.subscribe(channel)
-        try:
-            async for message in pubsub.listen():
-                if message.get("type") == "message":
-                    yield message
-        finally:
-            await pubsub.unsubscribe(channel)
-            await pubsub.aclose()
