@@ -243,6 +243,7 @@ Important SSE behavior:
 
 - the payload is a raw `MediaJobResponse`, not the normal API envelope
 - Boreas only emits when the serialized job snapshot changes
+- the stream wakes when job state is saved to Redis (pub/sub), not on a fixed poll interval
 - the stream closes once the job reaches `complete` or `failed`
 
 Browser example:

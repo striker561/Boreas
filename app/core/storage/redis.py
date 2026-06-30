@@ -1,4 +1,5 @@
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from redis.asyncio import ConnectionPool, Redis
@@ -211,3 +212,21 @@ class RedisCache:
         if expire_if_new is not None and count == 1:
             await client.expire(key, expire_if_new)
         return count
+
+    async def publish(self, channel: str, message: str = "1") -> int:
+        """Publish to a Redis pub/sub channel. Returns subscriber count."""
+        client = await self._get_client()
+        return int(await client.publish(channel, message))
+
+    async def listen(self, channel: str) -> AsyncIterator[dict[str, Any]]:
+        """Yield pub/sub messages on *channel*. One dedicated connection per stream."""
+        client = await self._get_client()
+        pubsub = client.pubsub()
+        await pubsub.subscribe(channel)
+        try:
+            async for message in pubsub.listen():
+                if message.get("type") == "message":
+                    yield message
+        finally:
+            await pubsub.unsubscribe(channel)
+            await pubsub.aclose()

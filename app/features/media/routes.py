@@ -1,6 +1,5 @@
 from typing import Annotated
 
-import asyncio
 import json
 from collections.abc import AsyncGenerator
 
@@ -16,7 +15,6 @@ from app.helpers import APIResponse
 from app.schemas import APIErrorResponseSchema, APIResponseSchema
 
 router = APIRouter(prefix="/media", tags=["Media"])
-STREAM_POLL_INTERVAL_SECONDS = 2.0
 UploadFileInput = Annotated[
     UploadFile,
     File(
@@ -139,23 +137,34 @@ async def stream_media_job(
     media: MediaService = Depends(get_media_service),
 ):
     _ = request
-    await media.require_job_response(job_id)
 
     async def event_stream() -> AsyncGenerator[str, None]:
         previous_payload: str | None = None
+        channel = media.storage.job_notify_channel(job_id)
 
-        while True:
+        async def maybe_emit() -> tuple[str | None, MediaJobResponse]:
+            nonlocal previous_payload
             payload = await media.require_job_response(job_id)
             serialized_payload = json.dumps(payload.model_dump(mode="json"))
+            if serialized_payload == previous_payload:
+                return None, payload
 
-            if serialized_payload != previous_payload:
-                yield f"data: {serialized_payload}\n\n"
-                previous_payload = serialized_payload
+            previous_payload = serialized_payload
+            return f"data: {serialized_payload}\n\n", payload
 
+        event, payload = await maybe_emit()
+        if event:
+            yield event
+        if payload.status in TERMINAL_JOB_STATUSES:
+            return
+
+        # ponytail: no poll fallback; stream idles until the next save_job notify
+        async for _ in media.storage.redis_cache.listen(channel):
+            event, payload = await maybe_emit()
+            if event:
+                yield event
             if payload.status in TERMINAL_JOB_STATUSES:
-                break
-
-            await asyncio.sleep(STREAM_POLL_INTERVAL_SECONDS)
+                return
 
     return StreamingResponse(
         event_stream(),

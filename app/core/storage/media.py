@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.core.config import environment
+from app.core.config import environment, logger
 from app.core.storage.dependency import get_redis_cache
 from app.core.storage.redis import RedisCache
 from app.lib.storage import StorageBackend, get_storage
@@ -92,6 +92,9 @@ class MediaStorageService:
     def job_key(self, job_id: str) -> str:
         return f"jobs:media:{job_id}"
 
+    def job_notify_channel(self, job_id: str) -> str:
+        return f"{self.job_key(job_id)}:notify"
+
     def build_source_object_key(self, job_id: str) -> str:
         return f"jobs/media/source/{job_id}"
 
@@ -132,6 +135,15 @@ class MediaStorageService:
         )
         if not saved:
             raise RuntimeError("Failed to persist media job in Redis")
+
+        try:
+            await self.redis_cache.publish(self.job_notify_channel(job.job_id))
+        except Exception as exc:
+            logger.warning(
+                "Failed to publish media job notify",
+                job_id=job.job_id,
+                error=type(exc).__name__,
+            )
 
     async def get_job(self, job_id: str) -> MediaJob | None:
         payload = await self.redis_cache.get_json(self.job_key(job_id))
