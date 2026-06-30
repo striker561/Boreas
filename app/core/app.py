@@ -24,6 +24,7 @@ from app.core.middleware import (
 from app.core.queue import close_arq_pool, get_arq_pool
 from app.core.rate_limit import limiter
 from app.core.storage.dependency import get_redis_cache
+from app.features.media.streams.hub import get_job_notify_hub
 from app.helpers import APIResponse, format_validation_errors
 
 STARTUP_DEPENDENCY_MAX_ATTEMPTS = environment.STARTUP_DEPENDENCY_MAX_ATTEMPTS
@@ -71,11 +72,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     redis_cache = get_redis_cache()
 
     await _warm_startup_dependencies(redis_cache)
+    await get_job_notify_hub().start()
     logger.info("Application startup complete")
 
     try:
         yield
     finally:
+        await get_job_notify_hub().stop()
         await redis_cache.disconnect()
         await close_arq_pool()
         logger.info("Application shutdown complete")

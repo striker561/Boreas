@@ -35,7 +35,14 @@ class HealthEndpointTests(unittest.IsolatedAsyncioTestCase):
         with patch(
             "app.features.health.service.get_arq_pool",
             new=AsyncMock(return_value=object()),
-        ):
+        ), patch(
+            "app.features.health.service.get_job_notify_hub",
+        ) as hub_factory:
+            hub_factory.return_value.stats.return_value = {
+                "active_streams": 2,
+                "tracked_jobs": 1,
+                "listener_running": True,
+            }
             from app.features.health.routes import public_health
             from app.features.health.service import HealthService
 
@@ -51,5 +58,8 @@ class HealthEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["queue_depths"]["boreas:media"], 3)
         self.assertEqual(payload["queue_depths"]["boreas:compute"], 1)
         self.assertEqual(payload["staged_uploads"], 2)
+        self.assertEqual(payload["sse_streams"]["active_streams"], 2)
+        self.assertEqual(payload["sse_streams"]["tracked_jobs"], 1)
+        self.assertTrue(payload["sse_streams"]["listener_running"])
         self.assertEqual(payload["limits"]["result_url_ttl_seconds"], 3600)
         self.assertEqual(payload["limits"]["api_rate_limit"], "5/minute")

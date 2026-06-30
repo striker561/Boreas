@@ -211,3 +211,8 @@ class RedisCache:
         if expire_if_new is not None and count == 1:
             await client.expire(key, expire_if_new)
         return count
+
+    async def publish(self, channel: str, message: str = "1") -> int:
+        """Publish to a Redis pub/sub channel. Returns subscriber count."""
+        client = await self._get_client()
+        return int(await client.publish(channel, message))
