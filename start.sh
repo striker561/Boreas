@@ -11,6 +11,7 @@ fi
 
 media_workers="${MEDIA_WORKERS:-1}"
 background_removal_workers="${BACKGROUND_REMOVAL_WORKERS:-1}"
+tasks_workers="${TASKS_WORKERS:-1}"
 declare -a worker_pids=()
 
 export OMP_NUM_THREADS="${REMBG_OMP_NUM_THREADS:-2}"
@@ -58,6 +59,11 @@ for _ in $(seq 1 "$background_removal_workers"); do
 	worker_pids+=("$!")
 done
 
-# Keep uvicorn in the foreground so worker exits do not immediately terminate
+for _ in $(seq 1 "$tasks_workers"); do
+	_run_worker app.core.queue.registry.TasksWorkerSettings &
+	worker_pids+=("$!")
+done
+
+# Keep uvicorn in the foreground
 # container liveness; workers are cleaned up when the API process exits.
 "$uvicorn_bin" app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --no-access-log

@@ -22,10 +22,13 @@ Developer integration guidance lives in [docs/integration-guide.md](docs/integra
 
 - `app/features/media`: public upload API, validation, staging, normalization, ingest worker
 - `app/features/rembg`: background-removal compute and compute worker
+- `app/features/tasks`: hourly ARQ cron cleanup (Redis job state + orphan S3 objects)
 - `app/features/health`: status and health endpoints
 - `app/core`: bootstrap, middleware, config, Redis, ARQ, shared storage primitives
 
 The public request path stays thin. The queue carries job ids, not images. Redis stages uploads briefly, object storage holds prepared sources and final results, and the workers own the expensive work.
+
+`start.sh` launches the API plus media, compute, and tasks workers. Each worker process is respawned automatically if it exits.
 
 ## Why It Is Built This Way
 
@@ -48,11 +51,12 @@ If clients want frequent job updates, SSE is the intended path. Repeated polling
 ## Object Lifecycle
 
 - staged uploads expire from Redis quickly
-- job metadata expires through Redis TTL
+- job metadata expires through Redis TTL; terminal jobs are also swept hourly by the tasks worker
 - prepared source objects should be deleted immediately after successful compute
 - final result objects should expire after one hour through an object storage lifecycle rule
+- the hourly tasks cron deletes orphan S3 objects older than `JOB_TTL_SECONDS` as a safety net
 
-The app assumes the bucket lifecycle matches the one-hour result retention policy.
+Configure bucket lifecycle for results; the app cron covers failures and misconfiguration.
 
 ## Configuration
 
@@ -69,6 +73,7 @@ Important settings:
 - `MEDIA_STAGING_TTL_SECONDS`
 - `MEDIA_WORKERS`
 - `BACKGROUND_REMOVAL_WORKERS`
+- `TASKS_WORKERS`
 - `STORAGE_ENDPOINT_URL`
 - `STORAGE_ACCESS_KEY_ID`
 - `STORAGE_SECRET_ACCESS_KEY`
@@ -97,6 +102,7 @@ For a small CPU-only VPS, keep the deployment conservative:
 
 - keep `MEDIA_WORKERS=1`
 - keep `BACKGROUND_REMOVAL_WORKERS=1`
+- keep `TASKS_WORKERS=1`
 - use `REMBG_MODEL=isnet-general-use` for a better edge-quality and latency balance than `u2netp`
 - keep `REMBG_POST_PROCESS_MASK=true`
 - leave `REMBG_ALPHA_MATTING=false` by default and only enable it if you can afford lower throughput for finer edges like hair or fur
@@ -123,9 +129,10 @@ It includes:
 - `Boreas API`
 - `Boreas Media Worker`
 - `Boreas Background Removal Worker`
+- `Boreas Tasks Worker`
 - `Boreas API + Workers` compound launch
 
-That gives you a clean way to debug the API and both worker processes without relying on the shell script.
+That gives you a clean way to debug the API and all worker processes without relying on the shell script.
 
 ## Validation
 
@@ -141,3 +148,4 @@ The suite currently covers:
 - source deletion after compute
 - one-hour result URL assumptions
 - health metrics payload
+- hourly tasks cleanup (Redis + S3 sweep)

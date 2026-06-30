@@ -13,6 +13,8 @@ Adding a new domain:
 
 from typing import ClassVar
 
+from arq.cron import cron
+
 from app.core.config import environment
 from app.core.queue.names import QueueName
 from app.core.queue.pool import build_arq_redis_settings
@@ -21,6 +23,7 @@ from app.features.rembg import (
     remove_background_job,
     warm_background_removal_worker,
 )
+from app.features.tasks import cleanup_expired_artifacts
 
 _redis = build_arq_redis_settings(environment.REDIS_URL)
 
@@ -45,3 +48,21 @@ class BackgroundRemovalWorkerSettings:
     job_timeout = 300
     keep_result = 0
     max_tries = 3
+
+
+class TasksWorkerSettings:
+    functions: ClassVar[list] = [cleanup_expired_artifacts]
+    cron_jobs = [
+        cron(
+            cleanup_expired_artifacts,
+            minute=0,
+            unique=True,
+            timeout=600,
+        ),
+    ]
+    redis_settings = _redis
+    queue_name = QueueName.tasks
+    max_jobs = 1
+    job_timeout = 600
+    keep_result = 0
+    max_tries = 1

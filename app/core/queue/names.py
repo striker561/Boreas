@@ -12,4 +12,5 @@ class QueueName(StrEnum):
     notifications = "boreas:notifications"
     media = "boreas:media"
     compute = "boreas:compute"
+    tasks = "boreas:tasks"
     analytics = "boreas:analytics"

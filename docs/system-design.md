@@ -57,6 +57,16 @@ That means Boreas is intentionally not a general media pipeline, not a generic j
 
 Health is kept as a feature because it is public API surface with its own behavior and ownership. It does not belong in `main.py` once the app grows beyond a trivial bootstrap.
 
+### Background tasks feature: `tasks`
+
+`app/features/tasks` owns:
+
+- the hourly ARQ cron cleanup job
+- sweeping terminal or stale Redis job metadata
+- deleting orphan S3 objects older than `JOB_TTL_SECONDS`
+
+This is not a public HTTP feature. It is operational hygiene so failed runs and lifecycle drift do not leave Redis or object storage cluttered.
+
 ### Shared infrastructure: `core`
 
 `app/core` owns:
@@ -80,6 +90,14 @@ Shared storage lives in `core/storage` because it is infrastructure used across 
    The worker downloads the prepared source, runs `rembg`, uploads the final PNG, deletes the prepared source, and marks the job complete.
 4. `GET /v1/media/jobs/{job_id}` or `GET /v1/media/jobs/{job_id}/stream`
    Clients read job state or stream updates until the result is ready.
+5. `tasks` worker (hourly ARQ cron)
+   Sweeps terminal or stale Redis job records and deletes orphan S3 objects older than `JOB_TTL_SECONDS`.
+
+## Worker Supervision
+
+`start.sh` launches the API plus media, compute, and tasks worker processes. Each worker runs inside a bash respawn loop — if the process exits (crash/OOM), it restarts after a short delay.
+
+Hung ONNX inference is handled inside the compute worker via `REMBG_INFERENCE_TIMEOUT_SECONDS` (default 120s), executor reset, and ARQ retry — not by killing the worker process.
 
 ## Why The Pipeline Is Split
 
@@ -138,10 +156,13 @@ The storage client is tuned for connection reuse and short network timeouts so w
 
 - staged uploads expire quickly in Redis
 - job metadata expires after the configured job TTL
+- terminal job records (`complete`, `failed`) are deleted hourly by the tasks cron
+- non-terminal jobs older than `JOB_TTL_SECONDS` are deleted hourly (covers stuck state after worker failures)
 - prepared source objects should be deleted immediately after successful compute
-- final result objects are intentionally short-lived and should expire through an object storage lifecycle rule after one hour
+- final result objects should expire through an object storage lifecycle rule after one hour
+- the hourly tasks cron deletes orphan S3 objects under `jobs/media/source/` and `jobs/media/result/` older than `JOB_TTL_SECONDS` as a safety net
 
-The app issues one-hour result URLs because the design assumes the bucket lifecycle matches that retention window.
+Configure bucket lifecycle for results. The app cron covers failures and misconfiguration.
 
 ## Abuse Protection And Rate Limits
 
@@ -166,6 +187,7 @@ Boreas logs at the places that actually matter operationally:
 - compute start and completion
 - job failure state transitions
 - degraded health checks
+- hourly cleanup summaries (`Hourly cleanup complete`)
 
 Axiom is configured through environment variables so operators can keep local logging only in development or forward telemetry when a token is present.
 

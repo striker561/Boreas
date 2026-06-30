@@ -37,6 +37,7 @@ class Environment(BaseSettings):
     MEDIA_STAGING_TTL_SECONDS: int = 15 * 60
     MEDIA_WORKERS: int = 1
     BACKGROUND_REMOVAL_WORKERS: int = 1
+    TASKS_WORKERS: int = 1
 
     STORAGE_ENDPOINT_URL: str = ""
     STORAGE_ACCESS_KEY_ID: str

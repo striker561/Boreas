@@ -28,6 +28,10 @@ class StorageBackend(Protocol):
         """Delete a single object."""
         ...
 
+    async def delete_objects_older_than(self, prefix: str, max_age_seconds: int) -> int:
+        """Delete objects under *prefix* older than *max_age_seconds*. Returns delete count."""
+        ...
+
     async def exists(self, key: str) -> bool:
         """Return whether the object exists."""
         ...
