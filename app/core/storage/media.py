@@ -226,6 +226,14 @@ class MediaStorageService:
     async def delete_source(self, job: MediaJob) -> None:
         await self.object_storage.delete(job.source_key)
 
+    async def delete_job_objects(self, job: MediaJob) -> int:
+        """Delete source and result objects for a job. Best-effort; missing keys are fine."""
+        deleted = 0
+        for key in (job.source_key, job.result_key):
+            await self.object_storage.delete(key)
+            deleted += 1
+        return deleted
+
     async def source_exists(self, job: MediaJob) -> bool:
         return await self.object_storage.exists(job.source_key)
 

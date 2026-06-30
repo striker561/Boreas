@@ -29,8 +29,8 @@ class TasksCleanupService:
         self.redis_cache = redis_cache
 
     async def run_hourly_cleanup(self) -> CleanupSummary:
-        redis_deleted = await self._cleanup_redis_jobs()
-        s3_deleted = await self._cleanup_s3_objects()
+        redis_deleted, job_s3_deleted = await self._cleanup_redis_jobs()
+        s3_deleted = job_s3_deleted + await self._cleanup_s3_objects()
         return CleanupSummary(
             redis_jobs_deleted=redis_deleted,
             s3_objects_deleted=s3_deleted,
@@ -46,9 +46,10 @@ class TasksCleanupService:
             job_ids.append(key.removeprefix(_MEDIA_JOB_KEY_PREFIX))
         return job_ids
 
-    async def _cleanup_redis_jobs(self) -> int:
+    async def _cleanup_redis_jobs(self) -> tuple[int, int]:
         cutoff = datetime.now(UTC) - timedelta(seconds=self.storage.job_ttl_seconds)
         deleted = 0
+        s3_deleted = 0
         for job_id in await self._iter_job_ids_for_cleanup():
             job = await self.storage.get_job(job_id)
             if job is None:
@@ -58,9 +59,10 @@ class TasksCleanupService:
                 updated_at = updated_at.replace(tzinfo=UTC)
             if job.status in TERMINAL_JOB_STATUSES or updated_at <= cutoff:
                 await self.storage.delete_staged_upload(job_id)
+                s3_deleted += await self.storage.delete_job_objects(job)
                 await self.storage.delete_job(job_id)
                 deleted += 1
-        return deleted
+        return deleted, s3_deleted
 
     async def _cleanup_s3_objects(self) -> int:
         deleted = 0
