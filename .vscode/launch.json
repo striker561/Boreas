@@ -40,6 +40,17 @@
       "envFile": "${workspaceFolder}/.env",
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+    {
+      "name": "Boreas Tasks Worker",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "arq",
+      "args": ["app.core.queue.registry.TasksWorkerSettings"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
     }
   ],
   "compounds": [
@@ -48,7 +59,8 @@
       "configurations": [
         "Boreas API",
         "Boreas Media Worker",
-        "Boreas Background Removal Worker"
+        "Boreas Background Removal Worker",
+        "Boreas Tasks Worker"
       ],
       "stopAll": true
     }

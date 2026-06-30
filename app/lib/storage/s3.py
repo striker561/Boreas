@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import aioboto3
@@ -93,6 +94,25 @@ class S3Backend:
         """Delete a single object."""
         async with self._client() as s3:
             await s3.delete_object(Bucket=self._bucket, Key=key)
+
+    async def delete_objects_older_than(self, prefix: str, max_age_seconds: int) -> int:
+        """Delete objects under *prefix* older than *max_age_seconds*."""
+        cutoff = datetime.now(UTC) - timedelta(seconds=max_age_seconds)
+        deleted = 0
+        async with self._client() as s3:
+            paginator = s3.get_paginator("list_objects_v2")
+            async for page in paginator.paginate(Bucket=self._bucket, Prefix=prefix):
+                for item in page.get("Contents", []):
+                    last_modified = item.get("LastModified")
+                    if last_modified is None:
+                        continue
+                    if last_modified.tzinfo is None:
+                        last_modified = last_modified.replace(tzinfo=UTC)
+                    if last_modified > cutoff:
+                        continue
+                    await s3.delete_object(Bucket=self._bucket, Key=item["Key"])
+                    deleted += 1
+        return deleted
 
     async def exists(self, key: str) -> bool:
         """Check whether an object exists."""

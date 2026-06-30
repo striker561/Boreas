@@ -6,13 +6,14 @@ It is written for operators and OSS users who want a reliable CPU-only deploymen
 
 ## What You Are Deploying
 
-Boreas runs three responsibilities:
+Boreas runs four responsibilities:
 
 - one FastAPI process for the public API
 - one media ingest worker group that normalizes uploads and pushes prepared source images to object storage
 - one background-removal worker group that runs rembg and uploads the final PNG
+- one tasks worker that runs an hourly ARQ cron to sweep stale Redis job state and orphan S3 objects
 
-The default container entrypoint starts all three inside one container through [start.sh](../start.sh).
+The default container entrypoint starts all four inside one container through [start.sh](../start.sh).
 
 That design is intentional for small deployments because:
 
@@ -54,8 +55,9 @@ Object paths used by Boreas:
 
 Recommended lifecycle policy:
 
-- delete `jobs/media/result/` objects after 1 hour
+- delete `jobs/media/result/` objects after 1 hour (primary)
 - let the app delete `jobs/media/source/` objects immediately after successful compute
+- the hourly tasks cron also deletes S3 objects older than `JOB_TTL_SECONDS` under both prefixes as a backup
 
 ## Quick Start For Coolify
 
@@ -102,6 +104,7 @@ Use this as the starting point for a small CPU-only VPS, including a Hostinger K
 ```env
 MEDIA_WORKERS=1
 BACKGROUND_REMOVAL_WORKERS=1
+TASKS_WORKERS=1
 REMBG_MODEL=isnet-general-use
 REMBG_POST_PROCESS_MASK=true
 REMBG_ALPHA_MATTING=false
@@ -125,6 +128,7 @@ Why this is the default profile:
 
 - one media worker is enough because ingest is mostly I/O plus image normalization
 - one background-removal worker avoids CPU oversubscription on a small box
+- one tasks worker is enough; it only runs a lightweight hourly sweep
 - `isnet-general-use` is a better quality-versus-latency default than `u2netp`
 - `post_process_mask=true` usually improves mask cleanliness at a reasonable cost
 - `alpha_matting=false` protects throughput and CPU budget until you know you need finer edge treatment
@@ -151,6 +155,8 @@ Why this is the default profile:
   Number of ingest worker processes.
 - `BACKGROUND_REMOVAL_WORKERS`
   Number of compute worker processes.
+- `TASKS_WORKERS`
+  Number of tasks worker processes (hourly cleanup cron). Default `1`.
 - `REMBG_OMP_NUM_THREADS`
   Number of CPU threads ONNX Runtime can use inside each compute worker.
 - `REMBG_INFERENCE_TIMEOUT_SECONDS`
@@ -220,6 +226,19 @@ Worker supervision:
 - `start.sh` respawns each ARQ worker when its process exits (crash/OOM)
 - rembg inference timeout is configurable via `REMBG_INFERENCE_TIMEOUT_SECONDS` (default 120s); hung ONNX calls trigger executor reset and ARQ retry
 - `/health` `queue_depths` and `staged_uploads` show pipeline backlog — use for ops, not container liveness
+
+## Hourly Cleanup Cron
+
+The tasks worker runs `cleanup_expired_artifacts` every hour at `:00` via ARQ cron.
+
+What it does:
+
+1. **Redis** — deletes job metadata that is terminal (`complete`, `failed`) or older than `JOB_TTL_SECONDS`, plus any staged-upload keys for those jobs
+2. **S3** — deletes objects under `jobs/media/source/` and `jobs/media/result/` with `LastModified` older than `JOB_TTL_SECONDS`
+
+Retention uses `JOB_TTL_SECONDS` (default 1 hour). No separate cleanup env var.
+
+Look for `Hourly cleanup complete` in logs with `redis_jobs_deleted` and `s3_objects_deleted` counts.
 
 ## Stuck Jobs Runbook
 

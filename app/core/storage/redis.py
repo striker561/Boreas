@@ -179,6 +179,23 @@ class RedisCache:
             )
             return 0
 
+    async def scan_keys(self, pattern: str) -> list[str]:
+        """Return Redis keys matching a glob pattern using SCAN."""
+        keys: list[str] = []
+        try:
+            client = await self._get_client()
+            async for key in client.scan_iter(match=pattern, count=100):
+                if isinstance(key, bytes):
+                    key = key.decode("utf-8")
+                keys.append(key)
+        except Exception as e:
+            logger.error(
+                "Redis key scan failed",
+                pattern=pattern,
+                error=type(e).__name__,
+            )
+        return keys
+
     async def incr(self, key: str, expire_if_new: int | None = None) -> int:
         """
         Atomically increment an integer counter stored at *key*.

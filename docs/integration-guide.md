@@ -220,7 +220,7 @@ Recommended polling behavior:
 
 - poll every 2 to 5 seconds, not aggressively
 - stop polling on `complete` or `failed`
-- expect `404` if the job has expired from Redis later in its lifecycle
+- expect `404` if the job has expired from Redis later in its lifecycle (Redis TTL or hourly tasks cleanup for terminal jobs)
 - copy the result into your own permanent storage if your product needs long retention
 
 Do not treat `result_url` as permanent. Boreas is designed around short-lived result access.
@@ -438,6 +438,7 @@ Recommended behavior:
 ## Integration Edge Cases That Matter
 
 - Boreas may accept an upload and still fail the job later if the staged upload expires before ingestion or if processing fails.
+- Terminal jobs (`complete`, `failed`) may disappear from Redis before the raw TTL expires when the hourly tasks cleanup runs.
 - Boreas may internally normalize the source image into JPEG, WEBP, or PNG before compute begins. Clients should not assume the worker input matches the original upload format.
 - The final downloadable result is always PNG.
 - `result_url` is short-lived. If users need durable access, your app should copy the PNG into its own storage.
